@@ -13,7 +13,12 @@ import "./styles.css";
 
 /* ============================================================
    Swell Scope – Schritt 1: Wellenhöhe für La Boca (Concón)
-   UI nach Apple Human Interface Guidelines (Designing for iOS)
+   UI nach Apple Human Interface Guidelines:
+   - iOS 26 „Liquid Glass" für Navigation & Controls als
+     funktionale Schicht über dem Content – sparsam eingesetzt
+   - Standard-Materialien im Content-Layer (kein Glas auf Glas)
+   - Scroll-Edge-Effekt, spekulare Kanten, konzentrische Radien
+   - Accessibility: „Transparenz reduzieren" & „Bewegung reduzieren"
    Daten: Open-Meteo Marine API (gratis, ohne Key, ~8 km Grid)
    Fallback: synthetische Demo-Daten, falls offline
    ============================================================ */
@@ -129,7 +134,7 @@ function heightColor(h: number | null) {
   return "var(--sysRed)";
 }
 
-// ---------- Tooltip im iOS-Stil ----------
+// ---------- Tooltip im iOS-Stil (Standard-Material für Lesbarkeit) ----------
 function ChartTooltip({ active, payload }: any) {
   if (!active || !payload || !payload.length) return null;
   const v = payload[0];
@@ -140,7 +145,7 @@ function ChartTooltip({ active, payload }: any) {
     <div
       style={{
         background: "var(--bg2)",
-        borderRadius: 12,
+        borderRadius: 14,
         padding: "8px 12px",
         boxShadow: "0 8px 24px rgba(0,0,0,0.22)",
         border: "0.5px solid var(--sepWeak)",
@@ -165,6 +170,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [selectedDay, setSelectedDay] = useState(0);
+  const [scrolled, setScrolled] = useState(false);
 
   const spot = SPOT;
 
@@ -189,6 +195,15 @@ export default function App() {
       alive = false;
     };
   }, [reloadKey]);
+
+  // Scroll-Edge-Effekt: Liquid-Glass-Navigation verstärkt sich,
+  // sobald Inhalt darunter durchläuft (analog UIScrollEdgeElementContainer)
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 4);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const rows = data?.rows ?? [];
   const nowRow = useMemo(() => {
@@ -218,8 +233,8 @@ export default function App() {
 
   return (
     <div className="sroot">
-      {/* Kompakte Navigationsleiste */}
-      <header className="ios-nav">
+      {/* Liquid-Glass-Navigation (funktionale Schicht über dem Content) */}
+      <header className="ios-nav" data-scrolled={scrolled}>
         <div className="mx-auto flex max-w-xl items-center justify-between px-4 py-2.5">
           <span className="ios-nav-title">{spot.name}</span>
           <div className="flex items-center gap-2">
@@ -265,9 +280,7 @@ export default function App() {
             {/* Aktuelle Wellenhöhe */}
             <section className="ios-card mt-5">
               <div className="px-5 pt-4 pb-1">
-                <div className="ios-caption" style={{ textTransform: "uppercase" }}>
-                  Wellenhöhe jetzt
-                </div>
+                <div className="ios-caption">Wellenhöhe jetzt</div>
                 <div className="mt-1 flex items-baseline gap-2">
                   <span
                     style={{
@@ -318,7 +331,7 @@ export default function App() {
                             color: isSel || isToday ? "var(--sysBlue)" : "var(--label2)",
                           }}
                         >
-                          {isToday ? "HEUTE" : weekdayOf(d.date).toUpperCase()}
+                          {isToday ? "Heute" : weekdayOf(d.date)}
                         </span>
                         <span style={{ fontSize: 9, color: "var(--label3)" }}>
                           {d.date.slice(8, 10)}.{d.date.slice(5, 7)}.

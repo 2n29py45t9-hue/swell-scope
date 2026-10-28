@@ -33,7 +33,14 @@ body {
   --sepWeak: rgba(60, 60, 67, 0.12);
   --fill: rgba(118, 118, 128, 0.12);
   --fill2: rgba(118, 118, 128, 0.08);
-  --navBlur: rgba(242, 242, 247, 0.72);
+  /* Liquid Glass (Regular-Variante): funktionale Schicht für Navigation & Controls */
+  --glass: rgba(255, 255, 255, 0.55);
+  --glassScrolled: rgba(255, 255, 255, 0.72);
+  --glassSpec: rgba(255, 255, 255, 0.85); /* spekulare Oberkante (Reflexion) */
+  --glassRim: rgba(255, 255, 255, 0.6);
+  --glassShadow: 0 4px 18px rgba(0, 0, 0, 0.1);
+  --btnGlass: rgba(255, 255, 255, 0.5);
+  --tint: #e9f2fb; /* dezenter Ozean-Ton im Content-Layer (Light) */
 }
 @media (prefers-color-scheme: dark) {
   .sroot {
@@ -52,12 +59,20 @@ body {
     --sepWeak: rgba(84, 84, 88, 0.3);
     --fill: rgba(118, 118, 128, 0.24);
     --fill2: rgba(118, 118, 128, 0.16);
-    --navBlur: rgba(0, 0, 0, 0.72);
+    --glass: rgba(28, 28, 30, 0.5);
+    --glassScrolled: rgba(28, 28, 30, 0.7);
+    --glassSpec: rgba(255, 255, 255, 0.16);
+    --glassRim: rgba(255, 255, 255, 0.14);
+    --glassShadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+    --btnGlass: rgba(70, 70, 74, 0.45);
+    --tint: #0b1725;
   }
 }
 .sroot {
   min-height: 100vh;
-  background: var(--bg);
+  /* Content-Layer: sanfter Ozean-Verlauf, damit das Liquid-Glass der
+     Navigation Inhalt durchscheinen lassen kann */
+  background: linear-gradient(180deg, var(--tint) 0%, var(--bg) 380px);
   color: var(--label);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
     system-ui, "Segoe UI", Roboto, sans-serif;
@@ -65,38 +80,51 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* Kompakte, transluzente Navigationsleiste (Hairline unten) */
+/* Liquid-Glass-Navigation (funktionale Ebene über dem Content) */
 .ios-nav {
   position: sticky;
   top: 0;
   z-index: 20;
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  background: var(--navBlur);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  background: var(--glass);
   border-bottom: 0.5px solid var(--sepWeak);
+  box-shadow: inset 0 0.5px 0 var(--glassSpec);
+  transition: background 0.25s ease, box-shadow 0.25s ease;
+}
+/* Scroll-Edge-Effekt: stärkere Trennung, sobald Inhalt durchläuft */
+.ios-nav[data-scrolled="true"] {
+  background: var(--glassScrolled);
+  box-shadow: inset 0 0.5px 0 var(--glassSpec), var(--glassShadow);
 }
 .ios-nav-title {
   font-size: 17px;
   font-weight: 600;
   letter-spacing: -0.2px;
 }
+/* Refresh als Liquid-Glass-Control mit spekularem Rand */
 .ios-refresh {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: 9999px;
-  background: var(--fill);
+  backdrop-filter: saturate(160%) blur(12px);
+  -webkit-backdrop-filter: saturate(160%) blur(12px);
+  background: var(--btnGlass);
   color: var(--sysBlue);
+  border: 0.5px solid var(--glassRim);
+  box-shadow: inset 0 1px 0.5px var(--glassSpec), 0 2px 8px rgba(0, 0, 0, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 16px;
   line-height: 1;
-  border: none;
   cursor: pointer;
-  transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.2s ease,
+    background 0.2s ease;
 }
 .ios-refresh:active {
-  transform: rotate(360deg);
+  transform: scale(0.88) rotate(180deg);
+  filter: brightness(1.2); /* Control „energisiert" sich mit Licht */
 }
 .ios-refresh[disabled] {
   opacity: 0.35;
@@ -121,16 +149,17 @@ body {
   font-size: 13px;
 }
 .ios-section-head {
-  text-transform: uppercase;
+  /* iOS 26: Titel-Schreibweise statt GROSSBUCHSTABEN */
   font-size: 13px;
   font-weight: 600;
   color: var(--label2);
-  letter-spacing: 0.4px;
+  letter-spacing: -0.08px;
 }
 .ios-card {
   background: var(--bg2);
-  border-radius: 16px;
+  border-radius: 20px; /* iOS 26: rundere, konzentrische Ecken */
   overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 .ios-cell-sep {
   border-top: 0.5px solid var(--sepWeak);
@@ -138,13 +167,18 @@ body {
 .ios-pill {
   font-size: 12px;
   font-weight: 600;
-  padding: 3px 9px;
+  padding: 3px 10px;
   border-radius: 9999px;
+  /* getönte Glass-Variante – Tint nur zur Hervorhebung (Live-Status) */
+  backdrop-filter: saturate(180%) blur(10px);
+  -webkit-backdrop-filter: saturate(180%) blur(10px);
+  border: 0.5px solid color-mix(in srgb, currentColor 35%, transparent);
+  box-shadow: inset 0 0.5px 0 var(--glassSpec);
 }
 .day-card {
   width: 64px;
   flex-shrink: 0;
-  border-radius: 12px;
+  border-radius: 14px; /* konzentrisch zur 20px-Karte */
   background: var(--bg2);
   border: 2px solid transparent;
   display: flex;
@@ -153,10 +187,14 @@ body {
   padding: 8px 0 7px;
   gap: 3px;
   cursor: pointer;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.day-card:active {
+  transform: scale(0.94);
 }
 .day-card[data-sel="true"] {
   border-color: var(--sysBlue);
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--sysBlue) 28%, transparent);
 }
 .hscroll {
   display: flex;
@@ -175,4 +213,32 @@ body {
   min-height: 4px;
   opacity: 0.9;
   display: inline-block;
+}
+
+/* Systemeinstellung „Transparenz reduzieren": solide Flächen statt Glas */
+@media (prefers-reduced-transparency: reduce) {
+  .ios-nav,
+  .ios-refresh,
+  .ios-pill {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: var(--bg2);
+    box-shadow: none;
+    border-color: var(--sepWeak);
+  }
+}
+/* Systemeinstellung „Bewegung reduzieren": kein Morphing, keine Rotation */
+@media (prefers-reduced-motion: reduce) {
+  .ios-nav,
+  .ios-refresh,
+  .day-card {
+    transition: none;
+  }
+  .ios-refresh:active {
+    transform: none;
+    filter: none;
+  }
+  .day-card:active {
+    transform: none;
+  }
 }
