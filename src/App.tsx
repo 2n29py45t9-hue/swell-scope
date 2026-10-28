@@ -353,18 +353,48 @@ const CSS = `
 .detail-k { color: var(--label2); }
 .detail-v { color: var(--label); font-weight: 600; text-align: right; }
 
+/* Tab-Bar unten: Liquid Glass über dem Content, mit Safe-Area */
+.tab-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  background: var(--glass);
+  border-top: 0.5px solid var(--sepWeak);
+  box-shadow: inset 0 0.5px 0 var(--glassSpec), 0 -4px 18px rgba(0, 0, 0, 0.06);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.tab-bar-inner {
+  display: flex; max-width: 36rem; margin: 0 auto;
+  padding: 2px 8px 3px;
+}
+.tab-item {
+  flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  min-height: 44px; padding: 6px 0 4px;
+  background: none; border: none; cursor: pointer;
+  color: var(--label2); font-family: inherit; font-size: 10px; font-weight: 600;
+  letter-spacing: 0.1px;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+.tab-item[data-active="true"] { color: var(--sysBlue); }
+.tab-item:active { transform: scale(0.92); }
+.tab-item:focus-visible { outline: 2px solid var(--sysBlue); outline-offset: -2px; border-radius: 10px; }
+/* Wetter-Tageskarte: etwas breiter wegen Symbol + Max/Min */
+.wcard { width: 72px; gap: 1px; }
+.wcard-emoji { font-size: 19px; line-height: 24px; }
+
 /* Systemeinstellung „Transparenz reduzieren“: solide Flächen statt Glas */
 @media (prefers-reduced-transparency: reduce) {
-  .ios-nav, .ios-refresh, .ios-pill {
+  .ios-nav, .ios-refresh, .ios-pill, .tab-bar {
     backdrop-filter: none; -webkit-backdrop-filter: none;
     background: var(--bg2); box-shadow: none; border-color: var(--sepWeak);
   }
 }
 /* Systemeinstellung „Bewegung reduzieren“: kein Morphing, keine Rotation */
 @media (prefers-reduced-motion: reduce) {
-  .ios-nav, .ios-refresh, .day-card { transition: none; }
+  .ios-nav, .ios-refresh, .day-card, .tab-item { transition: none; }
   .ios-refresh:active { transform: none; filter: none; }
   .day-card:active { transform: none; }
+  .tab-item:active { transform: none; }
   .page-anim { animation: none; }
 }
 `;
@@ -397,6 +427,319 @@ function ChartTooltip({ active, payload }: any) {
   );
 }
 
+// ---------- Wiederverwendbare Bausteine ----------
+
+type Tab = "home" | "waves" | "weather";
+
+// Stunden-Diagramm eines Tages (Home: heute · Wellen: gewählter Tag)
+function WaveChart({
+  dayRows,
+  nowX,
+  hasNow,
+  height = 256,
+  gradientId,
+}: {
+  dayRows: HourRow[];
+  nowX: string | null;
+  hasNow: boolean;
+  height?: number;
+  gradientId: string;
+}) {
+  if (dayRows.length === 0) {
+    return (
+      <div
+        style={{
+          height,
+          color: "var(--label3)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        Keine Daten verfügbar
+      </div>
+    );
+  }
+  return (
+    <div style={{ height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={dayRows} margin={{ top: 6, right: 8, bottom: 0, left: -14 }}>
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--sysBlue)" stopOpacity={0.35} />
+              <stop offset="100%" stopColor="var(--sysBlue)" stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke="var(--sepWeak)" vertical={false} />
+          <XAxis
+            dataKey="x"
+            tickFormatter={(v: string) => v.slice(11, 13)}
+            tick={{ fill: "var(--label2)", fontSize: 11 }}
+            interval={2}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fill: "var(--label2)", fontSize: 11 }}
+            domain={[0, "auto"]}
+            tickFormatter={(v: number) => v.toFixed(1)}
+            unit=" m"
+            width={40}
+            axisLine={false}
+            tickLine={false}
+          />
+          <Tooltip content={<ChartTooltip />} />
+          {hasNow && nowX && (
+            <ReferenceLine
+              x={nowX}
+              stroke="var(--sysPink)"
+              strokeDasharray="4 3"
+              label={{ value: "jetzt", fill: "var(--sysPink)", fontSize: 10, position: "insideTopLeft" }}
+            />
+          )}
+          <Area
+            type="monotone"
+            dataKey="h"
+            name="Wellenhöhe"
+            stroke="var(--sysBlue)"
+            strokeWidth={2}
+            fill={`url(#${gradientId})`}
+            connectNulls
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// Tagesleiste mit Wellen-Maximum – überall identisch (Home, Wellen)
+function WaveDayStrip({
+  days,
+  todayDate,
+  selected,
+  onSelect,
+}: {
+  days: DayRow[];
+  todayDate: string;
+  selected: string;
+  onSelect: (date: string) => void;
+}) {
+  return (
+    <div className="hscroll">
+      {days.map((d) => {
+        const isToday = todayDate === d.date;
+        const isSel = selected === d.date;
+        const h = d.max ?? 0;
+        return (
+          <button
+            key={d.date}
+            className="day-card"
+            data-sel={isSel}
+            aria-pressed={isSel}
+            aria-label={`${isToday ? "Heute" : weekdayOf(d.date)}, ${d.date.slice(8, 10)}.${d.date.slice(5, 7)}.`}
+            onClick={() => onSelect(d.date)}
+          >
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color: isSel || isToday ? "var(--sysBlue)" : "var(--label2)",
+              }}
+            >
+              {isToday ? "Heute" : weekdayOf(d.date)}
+            </span>
+            <span style={{ fontSize: 9, color: "var(--label3)" }}>
+              {d.date.slice(8, 10)}.{d.date.slice(5, 7)}.
+            </span>
+            <span style={{ height: 56, display: "flex", alignItems: "flex-end" }}>
+              <span
+                className="bar"
+                style={{ height: `${clamp((h / 4.5) * 100, 8, 100)}%`, background: heightColor(h) }}
+              />
+            </span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--label)" }}>
+              {d.max != null ? d.max.toFixed(1) : "–"}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Tagesleiste mit Wetter (Symbol, Max/Min, Regen)
+function WeatherDayStrip({
+  days,
+  weather,
+  todayDate,
+  selected,
+  onSelect,
+}: {
+  days: DayRow[];
+  weather: DayWeather[];
+  todayDate: string;
+  selected: string;
+  onSelect: (date: string) => void;
+}) {
+  return (
+    <div className="hscroll">
+      {days.map((d) => {
+        const w = weather.find((x) => x.date === d.date);
+        const cond = wmoInfo(w?.code ?? null);
+        const isToday = todayDate === d.date;
+        const isSel = selected === d.date;
+        return (
+          <button
+            key={d.date}
+            className="day-card wcard"
+            data-sel={isSel}
+            aria-pressed={isSel}
+            aria-label={`${isToday ? "Heute" : weekdayOf(d.date)}, ${d.date.slice(8, 10)}.${d.date.slice(5, 7)}.`}
+            onClick={() => onSelect(d.date)}
+          >
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color: isSel || isToday ? "var(--sysBlue)" : "var(--label2)",
+              }}
+            >
+              {isToday ? "Heute" : weekdayOf(d.date)}
+            </span>
+            <span style={{ fontSize: 9, color: "var(--label3)" }}>
+              {d.date.slice(8, 10)}.{d.date.slice(5, 7)}.
+            </span>
+            <span className="wcard-emoji" aria-hidden="true">
+              {cond.emoji}
+            </span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--label)" }}>
+              {w?.tMax != null ? `${Math.round(w.tMax)}°` : "–"}
+            </span>
+            <span style={{ fontSize: 10, color: "var(--label3)" }}>
+              {w?.tMin != null ? `${Math.round(w.tMin)}°` : ""}
+            </span>
+            <span style={{ fontSize: 9, fontWeight: 600, color: "var(--sysBlue)", minHeight: 12 }}>
+              {w?.precip != null && w.precip >= 0.2 ? `${w.precip.toFixed(1)} mm` : ""}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Wetterdetails eines Tages (Detailseite + Wetter-Tab)
+function WeatherDetails({ w }: { w: DayWeather | undefined }) {
+  if (!w) {
+    return (
+      <div className="detail-row">
+        <span className="detail-k">Wetterdaten zurzeit nicht verfügbar</span>
+      </div>
+    );
+  }
+  const cond = wmoInfo(w.code);
+  const cell = (k: string, v: string, key: string) => (
+    <div key={key} className="ios-cell-sep detail-row">
+      <span className="detail-k">{k}</span>
+      <span className="detail-v">{v}</span>
+    </div>
+  );
+  return (
+    <>
+      <div className="detail-cond">
+        <span style={{ fontSize: 30 }}>{cond.emoji}</span>
+        <span>{cond.label}</span>
+      </div>
+      {cell(
+        "Temperatur",
+        `${w.tMax != null ? w.tMax.toFixed(0) : "–"}° / ${w.tMin != null ? w.tMin.toFixed(0) : "–"}°`,
+        "temp"
+      )}
+      {cell(
+        "Wind (max)",
+        `${w.windMax != null ? `${Math.round(w.windMax)} km/h · ${dirText(w.windDir)}` : "–"}`,
+        "wind"
+      )}
+      {cell("Böen (max)", `${w.gustsMax != null ? `${Math.round(w.gustsMax)} km/h` : "–"}`, "gusts")}
+      {cell("Regen", `${w.precip != null ? `${w.precip.toFixed(1)} mm` : "–"}`, "rain")}
+      {cell(
+        "Sonne",
+        `${(w.sunrise ?? "").slice(11, 16) || "–"} – ${(w.sunset ?? "").slice(11, 16) || "–"}`,
+        "sun"
+      )}
+    </>
+  );
+}
+
+// Tab-Bar unten (Liquid Glass, Safe-Area) – Home · Wellen · Wetter
+function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
+  const items: { id: Tab; label: string }[] = [
+    { id: "home", label: "Home" },
+    { id: "waves", label: "Wellen" },
+    { id: "weather", label: "Wetter" },
+  ];
+  const icon = (id: Tab, active: boolean) => {
+    const stroke = active ? "var(--sysBlue)" : "var(--label2)";
+    const common = {
+      width: 25,
+      height: 25,
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke,
+      strokeWidth: 1.8,
+      strokeLinecap: "round" as const,
+      strokeLinejoin: "round" as const,
+      "aria-hidden": true,
+    };
+    if (id === "home") {
+      return (
+        <svg {...common}>
+          <path d="M3.4 10.6 12 3.4l8.6 7.2" />
+          <path d="M5.6 9.6V20h12.8V9.6" />
+          <path d="M9.8 20v-5.2h4.4V20" />
+        </svg>
+      );
+    }
+    if (id === "waves") {
+      return (
+        <svg {...common}>
+          <path d="M2.6 8.2c1.7-1.5 3.4-1.5 5.1 0s3.4 1.5 5.1 0 3.4-1.5 5.1 0 3.4 1.5 3.5 0" />
+          <path d="M2.6 13.2c1.7-1.5 3.4-1.5 5.1 0s3.4 1.5 5.1 0 3.4-1.5 5.1 0 3.4 1.5 3.5 0" />
+          <path d="M2.6 18.2c1.7-1.5 3.4-1.5 5.1 0s3.4 1.5 5.1 0 3.4-1.5 5.1 0 3.4 1.5 3.5 0" />
+        </svg>
+      );
+    }
+    return (
+      <svg {...common}>
+        <circle cx="8.2" cy="7.6" r="2.9" />
+        <path d="M8.2 2.2v1.3M8.2 11.7v1.3M3.4 7.6H2.1M14.3 7.6h-1.3M4.8 4.2 3.9 3.3M11.6 4.2l.9-.9" />
+        <path d="M7.6 20.4h8.6a3.4 3.4 0 0 0 .4-6.8 4.6 4.6 0 0 0-8.7 1.2 3 3 0 0 0-.3 5.6Z" />
+      </svg>
+    );
+  };
+  return (
+    <nav className="tab-bar" aria-label="Hauptnavigation">
+      <div className="tab-bar-inner">
+        {items.map((it) => {
+          const active = tab === it.id;
+          return (
+            <button
+              key={it.id}
+              className="tab-item"
+              data-active={active}
+              aria-current={active ? "page" : undefined}
+              onClick={() => onChange(it.id)}
+            >
+              {icon(it.id, active)}
+              <span>{it.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
 // ---------- Tages-Detailseite: Diagramm + Wetterdetails ----------
 function DayDetail({
   day,
@@ -416,14 +759,6 @@ function DayDetail({
     [rows, day.date]
   );
   const hasNow = dayRows.some((r) => r.x === nowX);
-  const w = weather;
-  const cond = wmoInfo(w?.code ?? null);
-  const cell = (k: string, v: string, key: string) => (
-    <div key={key} className="ios-cell-sep detail-row">
-      <span className="detail-k">{k}</span>
-      <span className="detail-v">{v}</span>
-    </div>
-  );
   return (
     <>
       {/* Großer Titel des Tages */}
@@ -438,94 +773,15 @@ function DayDetail({
             Tagesmaximum {day.max != null ? `${day.max.toFixed(1)} m` : "–"}
           </div>
         </div>
-        <div className="px-2 pb-3" style={{ height: 220 }}>
-          {dayRows.length === 0 ? (
-            <div style={{ color: "var(--label3)", display: "flex", height: "100%", alignItems: "center", justifyContent: "center" }}>
-              Keine Daten verfügbar
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={dayRows} margin={{ top: 6, right: 8, bottom: 0, left: -14 }}>
-                <defs>
-                  <linearGradient id="waveGradDay" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--sysBlue)" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="var(--sysBlue)" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="var(--sepWeak)" vertical={false} />
-                <XAxis
-                  dataKey="x"
-                  tickFormatter={(v: string) => v.slice(11, 13)}
-                  tick={{ fill: "var(--label2)", fontSize: 11 }}
-                  interval={2}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fill: "var(--label2)", fontSize: 11 }}
-                  domain={[0, "auto"]}
-                  tickFormatter={(v: number) => v.toFixed(1)}
-                  unit=" m"
-                  width={40}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <Tooltip content={<ChartTooltip />} />
-                {hasNow && nowX && (
-                  <ReferenceLine
-                    x={nowX}
-                    stroke="var(--sysPink)"
-                    strokeDasharray="4 3"
-                    label={{ value: "jetzt", fill: "var(--sysPink)", fontSize: 10, position: "insideTopLeft" }}
-                  />
-                )}
-                <Area
-                  type="monotone"
-                  dataKey="h"
-                  name="Wellenhöhe"
-                  stroke="var(--sysBlue)"
-                  strokeWidth={2}
-                  fill="url(#waveGradDay)"
-                  connectNulls
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
+        <div className="px-2 pb-3">
+          <WaveChart dayRows={dayRows} nowX={nowX} hasNow={hasNow} height={220} gradientId="waveGradDay" />
         </div>
       </section>
 
       {/* Wetterdetails des Tages */}
       <h3 className="ios-section-head mt-6 mb-2 px-1">Wetterdetails</h3>
       <section className="ios-card">
-        {w ? (
-          <>
-            <div className="detail-cond">
-              <span style={{ fontSize: 30 }}>{cond.emoji}</span>
-              <span>{cond.label}</span>
-            </div>
-            {cell(
-              "Temperatur",
-              `${w.tMax != null ? w.tMax.toFixed(0) : "–"}° / ${w.tMin != null ? w.tMin.toFixed(0) : "–"}°`,
-              "temp"
-            )}
-            {cell(
-              "Wind (max)",
-              `${w.windMax != null ? `${Math.round(w.windMax)} km/h · ${dirText(w.windDir)}` : "–"}`,
-              "wind"
-            )}
-            {cell("Böen (max)", `${w.gustsMax != null ? `${Math.round(w.gustsMax)} km/h` : "–"}`, "gusts")}
-            {cell("Regen", `${w.precip != null ? `${w.precip.toFixed(1)} mm` : "–"}`, "rain")}
-            {cell(
-              "Sonne",
-              `${(w.sunrise ?? "").slice(11, 16) || "–"} – ${(w.sunset ?? "").slice(11, 16) || "–"}`,
-              "sun"
-            )}
-          </>
-        ) : (
-          <div className="detail-row">
-            <span className="detail-k">Wetterdaten zurzeit nicht verfügbar</span>
-          </div>
-        )}
+        <WeatherDetails w={weather} />
       </section>
     </>
   );
@@ -537,9 +793,13 @@ export default function App() {
   const [demo, setDemo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
-  // Tag der geöffneten Detailseite (null = Übersicht). Das Diagramm auf der
-  // Übersicht hängt bewusst nicht mehr davon ab: es zeigt immer nur heute.
+  // Tag der geöffneten Detailseite (null = keine Detailseite).
+  // Das Diagramm auf Home zeigt immer nur heute (keine Tagesauswahl).
   const [detailDate, setDetailDate] = useState<string | null>(null);
+  // Tagesauswahl in den Tabs „Wellen" und „Wetter" (null = heute)
+  const [waveDate, setWaveDate] = useState<string | null>(null);
+  const [weatherDate, setWeatherDate] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>("home");
   const [scrolled, setScrolled] = useState(false);
 
   const spot = SPOT;
@@ -589,7 +849,7 @@ export default function App() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Beim neuen Laden einer Detailseite oben starten
+  // Beim Öffnen einer Detailseite bzw. Tab-Wechsel oben starten
   useEffect(() => {
     if (detailOpen) window.scrollTo({ top: 0 });
   }, [detailOpen]);
@@ -605,6 +865,11 @@ export default function App() {
   const todayMax = data?.days.find((d) => d.date === todayKey)?.max ?? null;
   const todayDate = todayKey ?? dateOnly(isoLocal(new Date()));
 
+  // Gewählte Tage der Tabs (Fallback: heute, falls Tag nicht in den Daten)
+  const hasDay = (d: string | null) => !!d && !!data?.days.some((x) => x.date === d);
+  const waveSel = hasDay(waveDate) ? (waveDate as string) : todayDate;
+  const weatherSel = hasDay(weatherDate) ? (weatherDate as string) : todayDate;
+
   const detailDayRow = useMemo(() => {
     if (!data?.days.length || !detailDate) return null;
     return data.days.find((d) => d.date === detailDate) ?? null;
@@ -614,13 +879,30 @@ export default function App() {
     [weather, detailDayRow]
   );
 
-  // Diagramm der Übersicht: ausschließlich der heutige Tag (24 Stunden)
-  const chartRows = useMemo(
+  // Home: ausschließlich heute · Wellen: gewählter Tag
+  const homeRows = useMemo(
     () => rows.filter((r) => dateOnly(r.x) === todayDate),
     [rows, todayDate]
   );
+  const waveRows = useMemo(
+    () => rows.filter((r) => dateOnly(r.x) === waveSel),
+    [rows, waveSel]
+  );
+  const homeHasNow = homeRows.some((r) => r.x === data?.nowX);
+  const waveHasNow = waveRows.some((r) => r.x === data?.nowX);
 
-  const hasNow = chartRows.some((r) => r.x === data?.nowX);
+  const waveSelMax = data?.days.find((d) => d.date === waveSel)?.max ?? null;
+  const weatherSelW = weather.find((w) => w.date === weatherSel);
+  const weatherSelMax = data?.days.find((d) => d.date === weatherSel)?.max ?? null;
+  const isTodaySel = (d: string) => d === todayDate;
+
+  const changeTab = (t: Tab) => {
+    setTab(t);
+    setDetailDate(null);
+    window.scrollTo({ top: 0 });
+  };
+
+  const navTitle = detailOpen ? "Details" : tab === "waves" ? "Wellen" : tab === "weather" ? "Wetter" : spot.name;
 
   return (
     <div className="sroot">
@@ -631,16 +913,18 @@ export default function App() {
         <div className="mx-auto flex max-w-xl items-center justify-between px-4 py-2.5">
           {detailOpen ? (
             <button className="ios-back" onClick={() => setDetailDate(null)}>
-              <span style={{ fontSize: 22, lineHeight: 1, marginRight: 2 }}>‹</span> Übersicht
+              <span style={{ fontSize: 22, lineHeight: 1, marginRight: 2 }}>‹</span> Zurück
             </button>
           ) : (
-            <span className="ios-nav-title">{spot.name}</span>
+            <span className="ios-nav-title">{navTitle}</span>
           )}
           <div className="flex items-center gap-2">
             <span
               className="ios-pill"
               style={{
-                background: demo ? "color-mix(in srgb, var(--sysOrange) 16%, transparent)" : "color-mix(in srgb, var(--sysGreen) 16%, transparent)",
+                background: demo
+                  ? "color-mix(in srgb, var(--sysOrange) 16%, transparent)"
+                  : "color-mix(in srgb, var(--sysGreen) 16%, transparent)",
                 color: demo ? "var(--sysOrange)" : "var(--sysGreen)",
               }}
             >
@@ -658,7 +942,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-xl px-4 pb-16 pt-6" style={{ paddingBottom: "calc(4rem + env(safe-area-inset-bottom))" }}>
+      <main className="mx-auto max-w-xl px-4 pt-6" style={{ paddingBottom: "calc(6rem + env(safe-area-inset-bottom))" }}>
         {loading && !data ? (
           <div className="space-y-4">
             <div className="h-28 rounded-2xl animate-pulse" style={{ background: "var(--fill2)" }} />
@@ -675,13 +959,87 @@ export default function App() {
               spot={spot}
             />
           </div>
-        ) : (
-          <>
-            {/* Großer Titel */}
-            <h1 className="ios-large-title">{spot.name}</h1>
-            <p className="ios-subtitle">
-              {spot.region} · Mündung des Río Aconcagua
+        ) : tab === "waves" ? (
+          /* ---------------- Tab: Wellen ---------------- */
+          <div className="page-anim" key="waves">
+            <h1 className="ios-large-title">Wellen</h1>
+            <p className="ios-subtitle">{spot.region} · Stundenverlauf & 7-Tage-Übersicht</p>
+
+            {data && data.days.length > 0 && (
+              <section className="mt-5">
+                <h3 className="ios-section-head mb-2 px-1">Maximum pro Tag · Tag wählen</h3>
+                <WaveDayStrip
+                  days={data.days}
+                  todayDate={todayDate}
+                  selected={waveSel}
+                  onSelect={(d) => setWaveDate(d)}
+                />
+              </section>
+            )}
+
+            <section className="ios-card mt-4 p-4">
+              <h3 style={{ fontSize: 17, fontWeight: 600, marginBottom: 10 }}>
+                Wellenhöhe · {isTodaySel(waveSel) ? "heute" : fmtDayLabel(waveSel)}
+              </h3>
+              <div className="ios-caption" style={{ marginTop: -6, marginBottom: 12 }}>
+                {fmtDayLabel(waveSel)} · Tagesmaximum {waveSelMax != null ? `${waveSelMax.toFixed(1)} m` : "–"}
+              </div>
+              <WaveChart dayRows={waveRows} nowX={data?.nowX ?? null} hasNow={waveHasNow} height={280} gradientId="waveGradWaves" />
+            </section>
+
+            <p className="ios-caption mt-3 px-1">
+              Tippe oben auf einen Tag, um in der 7-Tage-Übersicht nach vorne zu springen.
             </p>
+          </div>
+        ) : tab === "weather" ? (
+          /* ---------------- Tab: Wetter ---------------- */
+          <div className="page-anim" key="weather">
+            <h1 className="ios-large-title">Wetter</h1>
+            <p className="ios-subtitle">{spot.region} · Wetter & 7-Tage-Übersicht</p>
+
+            {data && data.days.length > 0 && (
+              <section className="mt-5">
+                <h3 className="ios-section-head mb-2 px-1">Wetter · Tag wählen</h3>
+                <WeatherDayStrip
+                  days={data.days}
+                  weather={weather}
+                  todayDate={todayDate}
+                  selected={weatherSel}
+                  onSelect={(d) => setWeatherDate(d)}
+                />
+              </section>
+            )}
+
+            <h3 className="ios-section-head mt-6 mb-2 px-1">
+              Wetterdetails · {isTodaySel(weatherSel) ? "heute" : fmtDayLabel(weatherSel)}
+            </h3>
+            <section className="ios-card">
+              <WeatherDetails w={weatherSelW} />
+            </section>
+
+            <h3 className="ios-section-head mt-6 mb-2 px-1">Wellen am gewählten Tag</h3>
+            <section className="ios-card p-4">
+              <div className="ios-caption" style={{ marginBottom: 8 }}>
+                {fmtDayLabel(weatherSel)} · Tagesmaximum {weatherSelMax != null ? `${weatherSelMax.toFixed(1)} m` : "–"}
+              </div>
+              <WaveChart
+                dayRows={rows.filter((r) => dateOnly(r.x) === weatherSel)}
+                nowX={data?.nowX ?? null}
+                hasNow={rows.some((r) => r.x === data?.nowX && dateOnly(r.x) === weatherSel)}
+                height={200}
+                gradientId="waveGradWeather"
+              />
+            </section>
+
+            <p className="ios-caption mt-3 px-1">
+              Tippe oben auf einen Tag, um in der 7-Tage-Übersicht nach vorne zu springen.
+            </p>
+          </div>
+        ) : (
+          /* ---------------- Tab: Home ---------------- */
+          <div className="page-anim" key="home">
+            <h1 className="ios-large-title">{spot.name}</h1>
+            <p className="ios-subtitle">{spot.region} · Mündung des Río Aconcagua</p>
 
             {/* Aktuelle Wellenhöhe */}
             <section className="ios-card mt-5">
@@ -689,7 +1047,13 @@ export default function App() {
                 <div className="ios-caption">Wellenhöhe jetzt</div>
                 <div className="mt-1 flex items-baseline gap-2">
                   <span
-                    style={{ fontSize: 64, fontWeight: 700, letterSpacing: "-1.5px", lineHeight: 1.05, color: heightColor(nowRow?.h ?? null) }}
+                    style={{
+                      fontSize: 64,
+                      fontWeight: 700,
+                      letterSpacing: "-1.5px",
+                      lineHeight: 1.05,
+                      color: heightColor(nowRow?.h ?? null),
+                    }}
                   >
                     {nowRow?.h == null ? "–" : nowRow.h.toFixed(1)}
                   </span>
@@ -714,98 +1078,22 @@ export default function App() {
             {data && data.days.length > 0 && (
               <section className="mt-6">
                 <h3 className="ios-section-head mb-2 px-1">Maximum pro Tag · 7 Tage</h3>
-                <div className="hscroll">
-                  {data.days.map((d) => {
-                    const isToday = todayDate === d.date;
-                    const h = d.max ?? 0;
-                    return (
-                      <button
-                        key={d.date}
-                        className="day-card"
-                        data-sel={isToday}
-                        onClick={() => setDetailDate(d.date)}
-                      >
-                        <span style={{ fontSize: 10, fontWeight: 700, color: isToday ? "var(--sysBlue)" : "var(--label2)" }}>
-                          {isToday ? "Heute" : weekdayOf(d.date)}
-                        </span>
-                        <span style={{ fontSize: 9, color: "var(--label3)" }}>
-                          {d.date.slice(8, 10)}.{d.date.slice(5, 7)}.
-                        </span>
-                        <span style={{ height: 56, display: "flex", alignItems: "flex-end" }}>
-                          <span className="bar" style={{ height: `${clamp((h / 4.5) * 100, 8, 100)}%`, background: heightColor(h) }} />
-                        </span>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--label)" }}>
-                          {d.max != null ? d.max.toFixed(1) : "–"}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
+                <WaveDayStrip
+                  days={data.days}
+                  todayDate={todayDate}
+                  selected={todayDate}
+                  onSelect={(d) => setDetailDate(d)}
+                />
               </section>
             )}
 
-            {/* Trend-Chart */}
+            {/* Trend-Chart – immer nur heute */}
             <section className="ios-card mt-6 p-4">
-              <h3 style={{ fontSize: 17, fontWeight: 600, marginBottom: 12 }}>
-                Wellenhöhe · heute
-              </h3>
+              <h3 style={{ fontSize: 17, fontWeight: 600, marginBottom: 12 }}>Wellenhöhe · heute</h3>
               <div className="ios-caption" style={{ marginTop: -8, marginBottom: 12 }}>
                 {fmtDayLabel(todayDate)} · Stundenverlauf
               </div>
-              <div style={{ height: 256 }}>
-                {chartRows.length === 0 ? (
-                  <div style={{ color: "var(--label3)", display: "flex", height: "100%", alignItems: "center", justifyContent: "center" }}>
-                    Keine Daten verfügbar
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartRows} margin={{ top: 6, right: 6, bottom: 0, left: -14 }}>
-                      <defs>
-                        <linearGradient id="waveGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--sysBlue)" stopOpacity={0.35} />
-                          <stop offset="100%" stopColor="var(--sysBlue)" stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid stroke="var(--sepWeak)" vertical={false} />
-                      <XAxis
-                        dataKey="x"
-                        tickFormatter={(v: string) => v.slice(11, 13)}
-                        tick={{ fill: "var(--label2)", fontSize: 11 }}
-                        interval={2}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        tick={{ fill: "var(--label2)", fontSize: 11 }}
-                        domain={[0, "auto"]}
-                        tickFormatter={(v: number) => v.toFixed(1)}
-                        unit=" m"
-                        width={40}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip content={<ChartTooltip />} />
-                      {hasNow && data?.nowX && (
-                        <ReferenceLine
-                          x={data.nowX}
-                          stroke="var(--sysPink)"
-                          strokeDasharray="4 3"
-                          label={{ value: "jetzt", fill: "var(--sysPink)", fontSize: 10, position: "insideTopLeft" }}
-                        />
-                      )}
-                      <Area
-                        type="monotone"
-                        dataKey="h"
-                        name="Wellenhöhe"
-                        stroke="var(--sysBlue)"
-                        strokeWidth={2}
-                        fill="url(#waveGrad)"
-                        connectNulls
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
+              <WaveChart dayRows={homeRows} nowX={data?.nowX ?? null} hasNow={homeHasNow} height={256} gradientId="waveGrad" />
             </section>
 
             {/* Quellenangabe als Caption */}
@@ -813,9 +1101,12 @@ export default function App() {
               Rohdaten aus den Wellen- und Wettermodellen von Open-Meteo (8-km-Grid, Aktualisierung alle 6 Stunden) – kein Score,
               kein Algorithmus. {demo ? "Gerade laufen Demo-Daten, weil die Live-Quelle nicht erreichbar war." : ""}
             </p>
-          </>
+          </div>
         )}
       </main>
+
+      {/* Tab-Bar unten – wie in iOS-Apps */}
+      <TabBar tab={tab} onChange={changeTab} />
     </div>
   );
 }
