@@ -12,13 +12,14 @@ import {
 
 /* ============================================================
    Swell Scope – Schritt 1: Wellenhöhe für La Boca (Concón)
+   + Tages-Detailseite: Stunden-Diagramm & Wetterdetails
    UI nach Apple Human Interface Guidelines:
    - iOS 26 „Liquid Glass“ für Navigation & Controls als
      funktionale Schicht über dem Content – sparsam eingesetzt
    - Standard-Materialien im Content-Layer (kein Glas auf Glas)
    - Scroll-Edge-Effekt, spekulare Kanten, konzentrische Radien
    - Accessibility: „Transparenz reduzieren“ & „Bewegung reduzieren“
-   Daten: Open-Meteo Marine API (gratis, ohne Key, ~8 km Grid)
+   Daten: Open-Meteo Marine API + Forecast API (gratis, ohne Key)
    Fallback: synthetische Demo-Daten, falls offline
    ============================================================ */
 
@@ -46,6 +47,28 @@ function fmtDayLabel(dateStr: string) {
   const d = new Date(dateStr + "T12:00:00");
   return `${WD[d.getDay()]}, ${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.`;
 }
+// Himmelsrichtung (Wind kommt aus dieser Richtung)
+function dirText(deg: number | null) {
+  if (deg == null) return "–";
+  const dirs = ["N", "NO", "O", "SO", "S", "SW", "W", "NW"];
+  return dirs[Math.round((deg % 360) / 45) % 8];
+}
+// WMO-Wettercode → Beschreibung + Symbol
+function wmoInfo(code: number | null): { label: string; emoji: string } {
+  if (code == null) return { label: "Keine Angabe", emoji: "🌡️" };
+  if (code === 0) return { label: "Klar", emoji: "☀️" };
+  if (code === 1) return { label: "Überwiegend klar", emoji: "🌤️" };
+  if (code === 2) return { label: "Teilweise wolkig", emoji: "⛅️" };
+  if (code === 3) return { label: "Bedeckt", emoji: "☁️" };
+  if (code === 45 || code === 48) return { label: "Nebel", emoji: "🌫️" };
+  if (code >= 51 && code <= 57) return { label: "Nieselregen", emoji: "🌦️" };
+  if (code >= 61 && code <= 67) return { label: "Regen", emoji: "🌧️" };
+  if (code >= 71 && code <= 77) return { label: "Schnee", emoji: "🌨️" };
+  if (code >= 80 && code <= 82) return { label: "Regenschauer", emoji: "🌦️" };
+  if (code >= 85 && code <= 86) return { label: "Schneeschauer", emoji: "🌨️" };
+  if (code >= 95) return { label: "Gewitter", emoji: "⛈️" };
+  return { label: "Keine Angabe", emoji: "🌡️" };
+}
 
 interface HourRow {
   x: string; // "YYYY-MM-DDTHH:00" (Spot-Ortszeit)
@@ -54,6 +77,18 @@ interface HourRow {
 interface DayRow {
   date: string;
   max: number | null;
+}
+interface DayWeather {
+  date: string;
+  tMax: number | null;
+  tMin: number | null;
+  precip: number | null;
+  windMax: number | null;
+  gustsMax: number | null;
+  windDir: number | null;
+  sunrise: string | null;
+  sunset: string | null;
+  code: number | null;
 }
 interface WaveData {
   rows: HourRow[];
@@ -84,6 +119,32 @@ async function fetchWaveData(spot: { lat: number; lon: number }): Promise<WaveDa
   const utcOffset = j.utc_offset_seconds ?? 0;
   const nowX = new Date(Date.now() + utcOffset * 1000).toISOString().slice(0, 13) + ":00";
   return { rows, days, nowX };
+}
+
+// ---------- Live-Wetter (Open-Meteo Forecast API) ----------
+async function fetchWeather(spot: { lat: number; lon: number }): Promise<DayWeather[]> {
+  const url =
+    `https://api.open-meteo.com/v1/forecast?latitude=${spot.lat}&longitude=${spot.lon}` +
+    `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,sunrise,sunset` +
+    `&forecast_days=7&timezone=auto`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const j = await res.json();
+  const d = j.daily || {};
+  const times: string[] = (d.time as string[]) || [];
+  const g = (k: string, i: number) => (d as any)[k]?.[i] ?? null;
+  return times.map((t: string, i: number) => ({
+    date: t,
+    tMax: g("temperature_2m_max", i),
+    tMin: g("temperature_2m_min", i),
+    precip: g("precipitation_sum", i),
+    windMax: g("wind_speed_10m_max", i),
+    gustsMax: g("wind_gusts_10m_max", i),
+    windDir: g("wind_direction_10m_dominant", i),
+    sunrise: g("sunrise", i),
+    sunset: g("sunset", i),
+    code: g("weather_code", i),
+  }));
 }
 
 // ---------- Demo-Daten (Offline-Fallback) ----------
@@ -120,6 +181,22 @@ function makeDemoData(spot: { lat: number; lon: number }): WaveData {
     }
   }
   return { rows, days, nowX: isoLocal(now) };
+}
+function makeDemoWeather(days: DayRow[]): DayWeather[] {
+  const rnd = mulberry32(20261028);
+  const codes = [0, 1, 2, 3, 61, 80];
+  return days.map((d, i) => ({
+    date: d.date,
+    tMax: 16 + Math.sin(i * 0.9) * 3 + rnd() * 2,
+    tMin: 10 + Math.sin(i * 0.9) * 2 + rnd() * 2,
+    precip: Math.max(0, rnd() * 2 - 1),
+    windMax: 14 + rnd() * 16,
+    gustsMax: 22 + rnd() * 22,
+    windDir: Math.round(rnd() * 359),
+    sunrise: d.date + "T06:41",
+    sunset: d.date + "T19:58",
+    code: codes[Math.floor(rnd() * codes.length)],
+  }));
 }
 
 // ---------- iOS-Designfarben (via CSS-Variablen, Light/Dark automatisch) ----------
@@ -190,6 +267,13 @@ const CSS = `
   box-shadow: inset 0 0.5px 0 var(--glassSpec), var(--glassShadow);
 }
 .ios-nav-title { font-size: 17px; font-weight: 600; letter-spacing: -0.2px; }
+/* Zurück-Button in der Navigation (Detailseite) */
+.ios-back {
+  background: none; border: none; cursor: pointer; padding: 0;
+  color: var(--sysBlue); font-size: 17px; font-family: inherit;
+  display: flex; align-items: center; gap: 4px;
+}
+.ios-back:active { opacity: 0.4; }
 /* Refresh als Liquid-Glass-Control mit spekularem Rand */
 .ios-refresh {
   width: 36px; height: 36px; border-radius: 9999px;
@@ -199,7 +283,7 @@ const CSS = `
   border: 0.5px solid var(--glassRim);
   box-shadow: inset 0 1px 0.5px var(--glassSpec), 0 2px 8px rgba(0,0,0,0.12);
   display: flex; align-items: center; justify-content: center;
-  font-size: 16px; line-height: 1; cursor: pointer;
+  font-size: 16px; line-height: 1;
   transition: transform 0.45s cubic-bezier(0.2,0.8,0.2,1), filter 0.2s ease, background 0.2s ease;
 }
 .ios-refresh:active { transform: scale(0.88) rotate(180deg); filter: brightness(1.2); }
@@ -251,6 +335,23 @@ const CSS = `
   width: 22px; border-radius: 5px 5px 2px 2px;
   min-height: 4px; opacity: 0.9;
 }
+/* Detailseite: Seitenwechsel wie iOS-Push-Navigation */
+.page-anim { animation: page-in 0.32s cubic-bezier(0.32, 0.72, 0, 1); }
+@keyframes page-in {
+  from { transform: translateX(28px); opacity: 0.3; }
+  to { transform: none; opacity: 1; }
+}
+/* Wetterdetails: gruppierte Liste im iOS-Stil */
+.detail-cond {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 20px; font-weight: 700; padding: 14px 16px;
+}
+.detail-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; font-size: 15px; min-height: 44px;
+}
+.detail-k { color: var(--label2); }
+.detail-v { color: var(--label); font-weight: 600; text-align: right; }
 
 /* Systemeinstellung „Transparenz reduzieren“: solide Flächen statt Glas */
 @media (prefers-reduced-transparency: reduce) {
@@ -264,6 +365,7 @@ const CSS = `
   .ios-nav, .ios-refresh, .day-card { transition: none; }
   .ios-refresh:active { transform: none; filter: none; }
   .day-card:active { transform: none; }
+  .page-anim { animation: none; }
 }
 `;
 
@@ -295,13 +397,149 @@ function ChartTooltip({ active, payload }: any) {
   );
 }
 
+// ---------- Tages-Detailseite: Diagramm + Wetterdetails ----------
+function DayDetail({
+  day,
+  weather,
+  rows,
+  nowX,
+  spot,
+}: {
+  day: DayRow;
+  weather: DayWeather | undefined;
+  rows: HourRow[];
+  nowX: string | null;
+  spot: typeof SPOT;
+}) {
+  const dayRows = useMemo(
+    () => rows.filter((r) => dateOnly(r.x) === day.date),
+    [rows, day.date]
+  );
+  const hasNow = dayRows.some((r) => r.x === nowX);
+  const w = weather;
+  const cond = wmoInfo(w?.code ?? null);
+  const cell = (k: string, v: string, key: string) => (
+    <div key={key} className="ios-cell-sep detail-row">
+      <span className="detail-k">{k}</span>
+      <span className="detail-v">{v}</span>
+    </div>
+  );
+  return (
+    <>
+      {/* Großer Titel des Tages */}
+      <h1 className="ios-large-title">{fmtDayLabel(day.date)}</h1>
+      <p className="ios-subtitle">{spot.region} · Tagesdetails</p>
+
+      {/* Stunden-Diagramm der Wellenhöhe */}
+      <section className="ios-card mt-5">
+        <div className="px-5 pt-4 pb-1">
+          <div className="ios-caption">Wellenhöhe · Stundenverlauf</div>
+          <div style={{ fontSize: 13, color: "var(--label2)", marginBottom: 8 }}>
+            Tagesmaximum {day.max != null ? `${day.max.toFixed(1)} m` : "–"}
+          </div>
+        </div>
+        <div className="px-2 pb-3" style={{ height: 220 }}>
+          {dayRows.length === 0 ? (
+            <div style={{ color: "var(--label3)", display: "flex", height: "100%", alignItems: "center", justifyContent: "center" }}>
+              Keine Daten verfügbar
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={dayRows} margin={{ top: 6, right: 8, bottom: 0, left: -14 }}>
+                <defs>
+                  <linearGradient id="waveGradDay" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--sysBlue)" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="var(--sysBlue)" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="var(--sepWeak)" vertical={false} />
+                <XAxis
+                  dataKey="x"
+                  tickFormatter={(v: string) => v.slice(11, 13)}
+                  tick={{ fill: "var(--label2)", fontSize: 11 }}
+                  interval={2}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fill: "var(--label2)", fontSize: 11 }}
+                  domain={[0, "auto"]}
+                  tickFormatter={(v: number) => v.toFixed(1)}
+                  unit=" m"
+                  width={40}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip content={<ChartTooltip />} />
+                {hasNow && nowX && (
+                  <ReferenceLine
+                    x={nowX}
+                    stroke="var(--sysPink)"
+                    strokeDasharray="4 3"
+                    label={{ value: "jetzt", fill: "var(--sysPink)", fontSize: 10, position: "insideTopLeft" }}
+                  />
+                )}
+                <Area
+                  type="monotone"
+                  dataKey="h"
+                  name="Wellenhöhe"
+                  stroke="var(--sysBlue)"
+                  strokeWidth={2}
+                  fill="url(#waveGradDay)"
+                  connectNulls
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </section>
+
+      {/* Wetterdetails des Tages */}
+      <h3 className="ios-section-head mt-6 mb-2 px-1">Wetterdetails</h3>
+      <section className="ios-card">
+        {w ? (
+          <>
+            <div className="detail-cond">
+              <span style={{ fontSize: 30 }}>{cond.emoji}</span>
+              <span>{cond.label}</span>
+            </div>
+            {cell(
+              "Temperatur",
+              `${w.tMax != null ? w.tMax.toFixed(0) : "–"}° / ${w.tMin != null ? w.tMin.toFixed(0) : "–"}°`,
+              "temp"
+            )}
+            {cell(
+              "Wind (max)",
+              `${w.windMax != null ? `${Math.round(w.windMax)} km/h · ${dirText(w.windDir)}` : "–"}`,
+              "wind"
+            )}
+            {cell("Böen (max)", `${w.gustsMax != null ? `${Math.round(w.gustsMax)} km/h` : "–"}`, "gusts")}
+            {cell("Regen", `${w.precip != null ? `${w.precip.toFixed(1)} mm` : "–"}`, "rain")}
+            {cell(
+              "Sonne",
+              `${(w.sunrise ?? "").slice(11, 16) || "–"} – ${(w.sunset ?? "").slice(11, 16) || "–"}`,
+              "sun"
+            )}
+          </>
+        ) : (
+          <div className="detail-row">
+            <span className="detail-k">Wetterdaten zurzeit nicht verfügbar</span>
+          </div>
+        )}
+      </section>
+    </>
+  );
+}
+
 export default function App() {
   const [data, setData] = useState<WaveData | null>(null);
+  const [weather, setWeather] = useState<DayWeather[]>([]);
   const [demo, setDemo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [selectedDay, setSelectedDay] = useState(0);
   const [scrolled, setScrolled] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const spot = SPOT;
 
@@ -309,18 +547,31 @@ export default function App() {
     let alive = true;
     setLoading(true);
     (async () => {
+      let d: WaveData;
+      let demoMode = false;
       try {
-        const d = await fetchWaveData(spot);
-        if (!alive) return;
-        setData(d);
-        setDemo(false);
+        d = await fetchWaveData(spot);
       } catch {
-        if (!alive) return;
-        setData(makeDemoData(spot));
-        setDemo(true);
-      } finally {
-        if (alive) setLoading(false);
+        d = makeDemoData(spot);
+        demoMode = true;
       }
+      // Wetter separat: bei Live-Wellen ohne Wetter einfach leer (Detailseite zeigt Hinweis),
+      // im Demo-Modus synthetische Wetterdaten passend zum Demo-Wellenbild.
+      let w: DayWeather[] = [];
+      if (demoMode) {
+        w = makeDemoWeather(d.days);
+      } else {
+        try {
+          w = await fetchWeather(spot);
+        } catch {
+          w = [];
+        }
+      }
+      if (!alive) return;
+      setData(d);
+      setWeather(w);
+      setDemo(demoMode);
+      setLoading(false);
     })();
     return () => {
       alive = false;
@@ -335,6 +586,11 @@ export default function App() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  // Beim neuen Laden einer Detailseite oben starten
+  useEffect(() => {
+    if (detailOpen) window.scrollTo({ top: 0 });
+  }, [detailOpen]);
 
   const rows = data?.rows ?? [];
   const nowRow = useMemo(() => {
@@ -351,7 +607,16 @@ export default function App() {
     return data.days[Math.min(selectedDay, data.days.length - 1)].date;
   }, [data, selectedDay]);
 
-  // 3 Tage ab ausgewähltem Tag
+  const selectedDayRow = useMemo(() => {
+    if (!data?.days.length) return null;
+    return data.days[Math.min(selectedDay, data.days.length - 1)];
+  }, [data, selectedDay]);
+  const selectedWeather = useMemo(
+    () => weather.find((w) => w.date === selectedDayRow?.date),
+    [weather, selectedDayRow]
+  );
+
+  // 3 Tage ab ausgewähltem Tag (Übersicht)
   const chartRows = useMemo(() => {
     const start = selectedDate + "T00:00";
     const endD = new Date(selectedDate + "T12:00");
@@ -369,7 +634,13 @@ export default function App() {
       {/* Liquid-Glass-Navigation (funktionale Schicht über dem Content) */}
       <header className="ios-nav" data-scrolled={scrolled}>
         <div className="mx-auto flex max-w-xl items-center justify-between px-4 py-2.5">
-          <span className="ios-nav-title">{spot.name}</span>
+          {detailOpen ? (
+            <button className="ios-back" onClick={() => setDetailOpen(false)}>
+              <span style={{ fontSize: 22, lineHeight: 1, marginRight: 2 }}>‹</span> Übersicht
+            </button>
+          ) : (
+            <span className="ios-nav-title">{spot.name}</span>
+          )}
           <div className="flex items-center gap-2">
             <span
               className="ios-pill"
@@ -398,6 +669,16 @@ export default function App() {
             <div className="h-28 rounded-2xl animate-pulse" style={{ background: "var(--fill2)" }} />
             <div className="h-24 rounded-2xl animate-pulse" style={{ background: "var(--fill2)" }} />
             <div className="h-64 rounded-2xl animate-pulse" style={{ background: "var(--fill2)" }} />
+          </div>
+        ) : detailOpen && selectedDayRow ? (
+          <div className="page-anim">
+            <DayDetail
+              day={selectedDayRow}
+              weather={selectedWeather}
+              rows={rows}
+              nowX={data?.nowX ?? null}
+              spot={spot}
+            />
           </div>
         ) : (
           <>
@@ -448,7 +729,10 @@ export default function App() {
                         key={d.date}
                         className="day-card"
                         data-sel={isSel}
-                        onClick={() => setSelectedDay(i)}
+                        onClick={() => {
+                          setSelectedDay(i);
+                          setDetailOpen(true);
+                        }}
                       >
                         <span style={{ fontSize: 10, fontWeight: 700, color: isSel || isToday ? "var(--sysBlue)" : "var(--label2)" }}>
                           {isToday ? "Heute" : weekdayOf(d.date)}
@@ -534,7 +818,7 @@ export default function App() {
 
             {/* Quellenangabe als Caption */}
             <p className="ios-caption mt-4 px-1" style={{ lineHeight: 1.5 }}>
-              Rohdaten aus den Wellenmodellen von Open-Meteo (8-km-Grid, Aktualisierung alle 6 Stunden) – kein Score,
+              Rohdaten aus den Wellen- und Wettermodellen von Open-Meteo (8-km-Grid, Aktualisierung alle 6 Stunden) – kein Score,
               kein Algorithmus. {demo ? "Gerade laufen Demo-Daten, weil die Live-Quelle nicht erreichbar war." : ""}
             </p>
           </>
