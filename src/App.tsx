@@ -537,11 +537,13 @@ export default function App() {
   const [demo, setDemo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
-  const [selectedDay, setSelectedDay] = useState(0);
+  // Tag der geöffneten Detailseite (null = Übersicht). Das Diagramm auf der
+  // Übersicht hängt bewusst nicht mehr davon ab: es zeigt immer nur heute.
+  const [detailDate, setDetailDate] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
 
   const spot = SPOT;
+  const detailOpen = detailDate != null;
 
   useEffect(() => {
     let alive = true;
@@ -601,29 +603,22 @@ export default function App() {
 
   const todayKey = nowRow ? dateOnly(nowRow.x) : null;
   const todayMax = data?.days.find((d) => d.date === todayKey)?.max ?? null;
+  const todayDate = todayKey ?? dateOnly(isoLocal(new Date()));
 
-  const selectedDate = useMemo(() => {
-    if (!data?.days.length) return dateOnly(new Date().toISOString().slice(0, 10));
-    return data.days[Math.min(selectedDay, data.days.length - 1)].date;
-  }, [data, selectedDay]);
-
-  const selectedDayRow = useMemo(() => {
-    if (!data?.days.length) return null;
-    return data.days[Math.min(selectedDay, data.days.length - 1)];
-  }, [data, selectedDay]);
-  const selectedWeather = useMemo(
-    () => weather.find((w) => w.date === selectedDayRow?.date),
-    [weather, selectedDayRow]
+  const detailDayRow = useMemo(() => {
+    if (!data?.days.length || !detailDate) return null;
+    return data.days.find((d) => d.date === detailDate) ?? null;
+  }, [data, detailDate]);
+  const detailWeather = useMemo(
+    () => weather.find((w) => w.date === detailDayRow?.date),
+    [weather, detailDayRow]
   );
 
-  // 3 Tage ab ausgewähltem Tag (Übersicht)
-  const chartRows = useMemo(() => {
-    const start = selectedDate + "T00:00";
-    const endD = new Date(selectedDate + "T12:00");
-    endD.setDate(endD.getDate() + 3);
-    const end = isoLocal(endD);
-    return rows.filter((r) => r.x >= start && r.x < end);
-  }, [rows, selectedDate]);
+  // Diagramm der Übersicht: ausschließlich der heutige Tag (24 Stunden)
+  const chartRows = useMemo(
+    () => rows.filter((r) => dateOnly(r.x) === todayDate),
+    [rows, todayDate]
+  );
 
   const hasNow = chartRows.some((r) => r.x === data?.nowX);
 
@@ -635,7 +630,7 @@ export default function App() {
       <header className="ios-nav" data-scrolled={scrolled}>
         <div className="mx-auto flex max-w-xl items-center justify-between px-4 py-2.5">
           {detailOpen ? (
-            <button className="ios-back" onClick={() => setDetailOpen(false)}>
+            <button className="ios-back" onClick={() => setDetailDate(null)}>
               <span style={{ fontSize: 22, lineHeight: 1, marginRight: 2 }}>‹</span> Übersicht
             </button>
           ) : (
@@ -670,11 +665,11 @@ export default function App() {
             <div className="h-24 rounded-2xl animate-pulse" style={{ background: "var(--fill2)" }} />
             <div className="h-64 rounded-2xl animate-pulse" style={{ background: "var(--fill2)" }} />
           </div>
-        ) : detailOpen && selectedDayRow ? (
+        ) : detailOpen && detailDayRow ? (
           <div className="page-anim">
             <DayDetail
-              day={selectedDayRow}
-              weather={selectedWeather}
+              day={detailDayRow}
+              weather={detailWeather}
               rows={rows}
               nowX={data?.nowX ?? null}
               spot={spot}
@@ -720,21 +715,17 @@ export default function App() {
               <section className="mt-6">
                 <h3 className="ios-section-head mb-2 px-1">Maximum pro Tag · 7 Tage</h3>
                 <div className="hscroll">
-                  {data.days.map((d, i) => {
-                    const isSel = i === selectedDay;
-                    const isToday = todayKey === d.date;
+                  {data.days.map((d) => {
+                    const isToday = todayDate === d.date;
                     const h = d.max ?? 0;
                     return (
                       <button
                         key={d.date}
                         className="day-card"
-                        data-sel={isSel}
-                        onClick={() => {
-                          setSelectedDay(i);
-                          setDetailOpen(true);
-                        }}
+                        data-sel={isToday}
+                        onClick={() => setDetailDate(d.date)}
                       >
-                        <span style={{ fontSize: 10, fontWeight: 700, color: isSel || isToday ? "var(--sysBlue)" : "var(--label2)" }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: isToday ? "var(--sysBlue)" : "var(--label2)" }}>
                           {isToday ? "Heute" : weekdayOf(d.date)}
                         </span>
                         <span style={{ fontSize: 9, color: "var(--label3)" }}>
@@ -756,8 +747,11 @@ export default function App() {
             {/* Trend-Chart */}
             <section className="ios-card mt-6 p-4">
               <h3 style={{ fontSize: 17, fontWeight: 600, marginBottom: 12 }}>
-                Wellenhöhe · 3 Tage ab {fmtDayLabel(chartRows.length ? dateOnly(chartRows[0].x) : selectedDate)}
+                Wellenhöhe · heute
               </h3>
+              <div className="ios-caption" style={{ marginTop: -8, marginBottom: 12 }}>
+                {fmtDayLabel(todayDate)} · Stundenverlauf
+              </div>
               <div style={{ height: 256 }}>
                 {chartRows.length === 0 ? (
                   <div style={{ color: "var(--label3)", display: "flex", height: "100%", alignItems: "center", justifyContent: "center" }}>
@@ -775,11 +769,9 @@ export default function App() {
                       <CartesianGrid stroke="var(--sepWeak)" vertical={false} />
                       <XAxis
                         dataKey="x"
-                        tickFormatter={(v: string) =>
-                          v.endsWith("00:00") ? weekdayOf(dateOnly(v)) : v.slice(11, 13)
-                        }
+                        tickFormatter={(v: string) => v.slice(11, 13)}
                         tick={{ fill: "var(--label2)", fontSize: 11 }}
-                        interval={5}
+                        interval={2}
                         axisLine={false}
                         tickLine={false}
                       />

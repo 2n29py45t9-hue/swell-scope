@@ -14,7 +14,7 @@ Navigationsleiste, gruppierte Karten, Safe-Area-Support.
 
 - Aktuelle Wellenhöhe, farbcodiert nach Größenordnung, plus Tagesmaximum
 - 16-Tage-Übersicht des Tagesmaximums
-- 3-Tage-Trend-Chart (stündlich) mit „jetzt"-Markierung
+- Tages-Chart für heute (stündlich) mit „jetzt“-Markierung – fest auf den aktuellen Tag, ohne Tagesauswahl
 - LIVE/DEMO-Badge mit automatischem Offline-Fallback auf Demo-Daten
 
 ## Stack
