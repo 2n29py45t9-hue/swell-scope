@@ -13,8 +13,11 @@ Navigationsleiste, gruppierte Karten, Safe-Area-Support.
 ## Features (Schritt 1)
 
 - Aktuelle Wellenhöhe, farbcodiert nach Größenordnung, plus Tagesmaximum
-- 16-Tage-Übersicht des Tagesmaximums
-- Tages-Chart für heute (stündlich) mit „jetzt“-Markierung – fest auf den aktuellen Tag, ohne Tagesauswahl
+- Tab-Bar unten (Liquid Glass, Safe-Area): **Home · Wellen · Wetter**
+- 7-Tage-Übersicht des Tagesmaximums, auf Home und Wellen identisch
+- Home: Tages-Chart für heute (stündlich) mit „jetzt“-Markierung – fest auf den aktuellen Tag
+- Wellen: Tagesleiste zum Springen auf einen der nächsten Tage + Stunden-Chart des Tages
+- Wetter: Tagesleiste mit Symbol/Max/Min/Regen, Wetterdetails und Wellen-Chart des gewählten Tags
 - LIVE/DEMO-Badge mit automatischem Offline-Fallback auf Demo-Daten
 
 ## Stack
