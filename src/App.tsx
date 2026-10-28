@@ -65,7 +65,7 @@ interface WaveData {
 async function fetchWaveData(spot: { lat: number; lon: number }): Promise<WaveData> {
   const url =
     `https://marine-api.open-meteo.com/v1/marine?latitude=${spot.lat}&longitude=${spot.lon}` +
-    `&hourly=wave_height&daily=wave_height_max&forecast_days=16&timezone=auto`;
+    `&hourly=wave_height&daily=wave_height_max&forecast_days=7&timezone=auto`;
   const res = await fetch(url);
   if (!res.ok) throw new Error("HTTP " + res.status);
   const j = await res.json();
@@ -103,7 +103,7 @@ function makeDemoData(spot: { lat: number; lon: number }): WaveData {
   const days: DayRow[] = [];
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0);
-  for (let d = 0; d < 16; d++) {
+  for (let d = 0; d < 7; d++) {
     const dayStart = new Date(start.getTime() + d * 86400000);
     const base = 1.6 + 1.3 * Math.sin((d + spot.lat) * 0.75) + rnd() * 0.4;
     days.push({
@@ -437,7 +437,7 @@ export default function App() {
             {/* Tagesübersicht */}
             {data && data.days.length > 0 && (
               <section className="mt-6">
-                <h3 className="ios-section-head mb-2 px-1">Maximum pro Tag · 16 Tage</h3>
+                <h3 className="ios-section-head mb-2 px-1">Maximum pro Tag · 7 Tage</h3>
                 <div className="hscroll">
                   {data.days.map((d, i) => {
                     const isSel = i === selectedDay;
