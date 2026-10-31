@@ -1,3 +1,17 @@
+/* ============================================================
+   Swell Scope – Design-System
+   Palette (aus dem Referenzbild) + Neon-Pink als Akzent:
+   --c-navy-950  #021024   Basis / Dark-Mode-Hintergrund
+   --c-navy-900  #052659   Marke, Tint (Light)
+   --c-blue-600  #5483B3   Sekundär
+   --c-blue-300  #7DA0CA   Sekundär hell / Tint (Dark)
+   --c-ice-100   #C1E8FF   Flächen & Text auf dunkel
+   --c-neon      #FF2D95   Akzent (sparsam: „ahora", LIVE, Peak)
+   Apple HIG: eine Tint-Farbe pro App, semantische Farben nur wo
+   Bedeutung entsteht, 44pt-Tap-Targets, Safe-Area, Glas nur als
+   funktionale Schicht über dem Content.
+   ============================================================ */
+
 * {
   box-sizing: border-box;
 }
@@ -7,84 +21,127 @@ body {
   padding: 0;
 }
 body {
-  background: #f2f2f7;
+  background: #eef5fc;
 }
 @media (prefers-color-scheme: dark) {
   body {
-    background: #000000;
+    background: #021024;
   }
 }
 
-/* iOS-Systemfarben & Erscheinungsbild */
+/* ---------- Theme-Tokens ---------- */
 .sroot {
   color-scheme: light dark;
-  --sysBlue: #007aff;
-  --sysGreen: #34c759;
-  --sysOrange: #ff9500;
-  --sysRed: #ff3b30;
-  --sysPink: #ff2d55;
-  --sysGray: #8e8e93;
-  --bg: #f2f2f7;
+
+  /* Palette */
+  --c-navy-950: #021024;
+  --c-navy-900: #052659;
+  --c-blue-600: #5483b3;
+  --c-blue-300: #7da0ca;
+  --c-ice-100: #c1e8ff;
+  --c-neon: #ff2d95;
+  --c-neon-soft: #ff5cb0;
+
+  /* Marken-/Akzentfarben */
+  --tint-strong: var(--c-navy-900); /* interaktive Elemente */
+  --tint-soft: var(--c-blue-600);
+  --accent: var(--c-neon); /* nur für „jetzt"/Live/Peak */
+
+  /* Text & Flächen */
+  --bg: #eef5fc;
   --bg2: #ffffff;
-  --label: #000000;
-  --label2: rgba(60, 60, 67, 0.6);
-  --label3: rgba(60, 60, 67, 0.3);
-  --sep: rgba(60, 60, 67, 0.29);
-  --sepWeak: rgba(60, 60, 67, 0.12);
-  --fill: rgba(118, 118, 128, 0.12);
-  --fill2: rgba(118, 118, 128, 0.08);
-  /* Liquid Glass (Regular-Variante): funktionale Schicht für Navigation & Controls */
-  --glass: rgba(255, 255, 255, 0.55);
-  --glassScrolled: rgba(255, 255, 255, 0.72);
-  --glassSpec: rgba(255, 255, 255, 0.85); /* spekulare Oberkante (Reflexion) */
-  --glassRim: rgba(255, 255, 255, 0.6);
-  --glassShadow: 0 4px 18px rgba(0, 0, 0, 0.1);
-  --btnGlass: rgba(255, 255, 255, 0.5);
-  --tint: #e9f2fb; /* dezenter Ozean-Ton im Content-Layer (Light) */
+  --label: #021024;
+  --label2: rgba(2, 16, 36, 0.62);
+  --label3: rgba(2, 16, 36, 0.38);
+  --sep: rgba(2, 16, 36, 0.18);
+  --sepWeak: rgba(2, 16, 36, 0.1);
+  --fill: rgba(84, 131, 179, 0.14);
+  --fill2: rgba(84, 131, 179, 0.1);
+  --card-shadow: 0 0.5px 0 rgba(2, 16, 36, 0.04), 0 6px 20px rgba(2, 16, 36, 0.06);
+
+  /* Liquid Glass (Regular-Variante) */
+  --glass: rgba(255, 255, 255, 0.62);
+  --glassScrolled: rgba(255, 255, 255, 0.82);
+  --glassSpec: rgba(255, 255, 255, 0.9);
+  --glassRim: rgba(255, 255, 255, 0.7);
+  --glassShadow: 0 6px 24px rgba(2, 16, 36, 0.1);
+  --btnGlass: rgba(255, 255, 255, 0.55);
+
+  /* Content-Layer: Ozean-Verlauf (Palette) */
+  --tint: #d8ecfd;
+
+  /* Höhen-Skala (sequenziell, 350+ = Akzent) */
+  --wv-1: var(--c-blue-300);
+  --wv-2: var(--c-blue-600);
+  --wv-3: var(--c-navy-900);
+  --wv-4: var(--c-neon);
+  --chart: var(--c-navy-900);
+  --sysGray: #8e8e93;
 }
+
 @media (prefers-color-scheme: dark) {
   .sroot {
-    --sysBlue: #0a84ff;
-    --sysGreen: #30d158;
-    --sysOrange: #ff9f0a;
-    --sysRed: #ff453a;
-    --sysPink: #ff375f;
-    --sysGray: #98989d;
-    --bg: #000000;
-    --bg2: #1c1c1e;
-    --label: #ffffff;
-    --label2: rgba(235, 235, 245, 0.6);
-    --label3: rgba(235, 235, 245, 0.3);
-    --sep: rgba(84, 84, 88, 0.6);
-    --sepWeak: rgba(84, 84, 88, 0.3);
-    --fill: rgba(118, 118, 128, 0.24);
-    --fill2: rgba(118, 118, 128, 0.16);
-    --glass: rgba(28, 28, 30, 0.5);
-    --glassScrolled: rgba(28, 28, 30, 0.7);
-    --glassSpec: rgba(255, 255, 255, 0.16);
-    --glassRim: rgba(255, 255, 255, 0.14);
-    --glassShadow: 0 4px 18px rgba(0, 0, 0, 0.4);
-    --btnGlass: rgba(70, 70, 74, 0.45);
-    --tint: #0b1725;
+    --tint-strong: var(--c-ice-100);
+    --tint-soft: var(--c-blue-300);
+    --accent: var(--c-neon-soft);
+
+    --bg: #021024;
+    --bg2: #072139;
+    --label: #f2faff;
+    --label2: rgba(193, 232, 255, 0.65);
+    --label3: rgba(193, 232, 255, 0.4);
+    --sep: rgba(193, 232, 255, 0.18);
+    --sepWeak: rgba(193, 232, 255, 0.1);
+    --fill: rgba(193, 232, 255, 0.1);
+    --fill2: rgba(193, 232, 255, 0.07);
+    --card-shadow: 0 0.5px 0 rgba(193, 232, 255, 0.05), 0 8px 24px rgba(0, 0, 0, 0.35);
+
+    --glass: rgba(5, 38, 89, 0.55);
+    --glassScrolled: rgba(2, 16, 36, 0.78);
+    --glassSpec: rgba(193, 232, 255, 0.16);
+    --glassRim: rgba(193, 232, 255, 0.14);
+    --glassShadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+    --btnGlass: rgba(193, 232, 255, 0.1);
+
+    --tint: #072139;
+
+    --wv-1: var(--c-blue-600);
+    --wv-2: var(--c-blue-300);
+    --wv-3: var(--c-ice-100);
+    --wv-4: var(--c-neon-soft);
+    --chart: var(--c-blue-300);
+    --sysGray: #8e8e93;
   }
 }
+
+/* ---------- Grundfläche ---------- */
 .sroot {
   min-height: 100vh;
-  /* Content-Layer: sanfter Ozean-Verlauf, damit das Liquid-Glass der
-     Navigation Inhalt durchscheinen lassen kann */
-  background: linear-gradient(180deg, var(--tint) 0%, var(--bg) 380px);
+  background:
+    radial-gradient(120% 60% at 50% -10%, color-mix(in srgb, var(--c-ice-100) 55%, transparent) 0%, transparent 60%),
+    linear-gradient(180deg, var(--tint) 0%, var(--bg) 420px);
   color: var(--label);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
     system-ui, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.1px;
+}
+@media (prefers-color-scheme: dark) {
+  .sroot {
+    background:
+      radial-gradient(120% 55% at 50% -10%, color-mix(in srgb, var(--c-navy-900) 85%, transparent) 0%, transparent 62%),
+      linear-gradient(180deg, var(--tint) 0%, var(--bg) 420px);
+  }
 }
 
-/* Liquid-Glass-Navigation (funktionale Ebene über dem Content) */
+/* ---------- Navigation (Liquid Glass) ---------- */
 .ios-nav {
   position: sticky;
   top: 0;
   z-index: 20;
+  padding-top: env(safe-area-inset-top);
   backdrop-filter: saturate(180%) blur(24px);
   -webkit-backdrop-filter: saturate(180%) blur(24px);
   background: var(--glass);
@@ -97,22 +154,79 @@ body {
   background: var(--glassScrolled);
   box-shadow: inset 0 0.5px 0 var(--glassSpec), var(--glassShadow);
 }
+/* Navigationsleiste: Titel zentriert, erscheint beim Scrollen (iOS) */
+.nav-bar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  min-height: 44px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+.nav-slot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.nav-slot-start {
+  justify-content: flex-start;
+}
+.nav-slot-end {
+  justify-content: flex-end;
+}
 .ios-nav-title {
   font-size: 17px;
   font-weight: 600;
   letter-spacing: -0.2px;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity 0.22s ease, transform 0.22s ease;
 }
+.ios-nav[data-title="true"] .ios-nav-title {
+  opacity: 1;
+  transform: none;
+}
+/* Zurück-Button: 44pt-Tap-Target, Tint-Farbe */
+.ios-back {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  min-height: 44px;
+  margin-left: -2px;
+  color: var(--tint-strong);
+  font-size: 17px;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.ios-back:active {
+  opacity: 0.45;
+  transform: scale(0.97);
+}
+.ios-back:focus-visible {
+  outline: 2px solid var(--tint-strong);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
 /* Refresh als Liquid-Glass-Control mit spekularem Rand */
 .ios-refresh {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 9999px;
   backdrop-filter: saturate(160%) blur(12px);
   -webkit-backdrop-filter: saturate(160%) blur(12px);
   background: var(--btnGlass);
-  color: var(--sysBlue);
+  color: var(--tint-strong);
   border: 0.5px solid var(--glassRim);
-  box-shadow: inset 0 1px 0.5px var(--glassSpec), 0 2px 8px rgba(0, 0, 0, 0.12);
+  box-shadow: inset 0 1px 0.5px var(--glassSpec), 0 2px 8px rgba(2, 16, 36, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -123,30 +237,48 @@ body {
     background 0.2s ease;
 }
 .ios-refresh:active {
-  transform: scale(0.88) rotate(180deg);
-  filter: brightness(1.2); /* Control „energisiert" sich mit Licht */
+  transform: scale(0.9) rotate(180deg);
+  filter: brightness(1.15);
 }
 .ios-refresh[disabled] {
   opacity: 0.35;
 }
-.ios-refresh:focus {
-  outline: none;
+.ios-refresh:focus-visible {
+  outline: 2px solid var(--tint-strong);
+  outline-offset: 2px;
 }
+
+/* Status-Pill (LIVE / DEMO) */
+.ios-pill {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  backdrop-filter: saturate(180%) blur(10px);
+  -webkit-backdrop-filter: saturate(180%) blur(10px);
+  border: 0.5px solid color-mix(in srgb, currentColor 32%, transparent);
+  box-shadow: inset 0 0.5px 0 var(--glassSpec);
+}
+
+/* ---------- Typografie ---------- */
 .ios-large-title {
   font-size: 34px;
   font-weight: 700;
-  letter-spacing: 0.37px;
+  letter-spacing: -0.6px;
   margin: 0;
-  line-height: 1.1;
+  line-height: 1.08;
 }
 .ios-subtitle {
   color: var(--label2);
   font-size: 15px;
-  margin: 4px 0 0;
+  letter-spacing: -0.2px;
+  margin: 5px 0 0;
 }
 .ios-caption {
   color: var(--label3);
   font-size: 13px;
+  letter-spacing: -0.05px;
 }
 .ios-section-head {
   /* iOS 26: Titel-Schreibweise statt GROSSBUCHSTABEN */
@@ -155,71 +287,283 @@ body {
   color: var(--label2);
   letter-spacing: -0.08px;
 }
+.section-title {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  margin: 0;
+}
+
+/* ---------- Karten (gruppiert, konzentrische Radien) ---------- */
 .ios-card {
   background: var(--bg2);
-  border-radius: 20px; /* iOS 26: rundere, konzentrische Ecken */
+  border-radius: 22px;
+  border: 0.5px solid var(--sepWeak);
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--card-shadow);
 }
 .ios-cell-sep {
   border-top: 0.5px solid var(--sepWeak);
 }
-.ios-pill {
-  font-size: 12px;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 9999px;
-  /* getönte Glass-Variante – Tint nur zur Hervorhebung (Live-Status) */
-  backdrop-filter: saturate(180%) blur(10px);
-  -webkit-backdrop-filter: saturate(180%) blur(10px);
-  border: 0.5px solid color-mix(in srgb, currentColor 35%, transparent);
-  box-shadow: inset 0 0.5px 0 var(--glassSpec);
+
+/* Hero-Karte „Altura de ola ahora" – Palette-Verlauf + Neon-Akzent */
+.hero {
+  position: relative;
+  background:
+    radial-gradient(110% 90% at 88% -18%, rgba(193, 232, 255, 0.28) 0%, transparent 58%),
+    linear-gradient(158deg, #0a3468 0%, var(--c-navy-900) 38%, var(--c-navy-950) 100%);
+  border: 0.5px solid rgba(193, 232, 255, 0.16);
+  box-shadow: 0 10px 30px rgba(2, 16, 36, 0.28), inset 0 0.5px 0 rgba(193, 232, 255, 0.18);
+  color: #f2faff;
 }
+.hero-caption {
+  color: rgba(193, 232, 255, 0.72);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.05px;
+}
+.hero-value {
+  font-size: 68px;
+  font-weight: 700;
+  letter-spacing: -2.2px;
+  line-height: 1;
+  color: var(--c-ice-100);
+  text-shadow: 0 0 26px rgba(193, 232, 255, 0.35);
+}
+.hero-unit {
+  font-size: 22px;
+  font-weight: 600;
+  color: rgba(193, 232, 255, 0.75);
+}
+.hero-meta {
+  font-size: 14px;
+  color: rgba(193, 232, 255, 0.78);
+  margin: 8px 0 14px;
+}
+.now-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: #fff;
+  background: color-mix(in srgb, var(--c-neon) 82%, #021024);
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--c-neon) 60%, transparent),
+    0 4px 16px color-mix(in srgb, var(--c-neon) 45%, transparent);
+}
+.now-chip::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #fff 35%, transparent);
+}
+.hero-legend {
+  border-top: 0.5px solid rgba(193, 232, 255, 0.18);
+  background: rgba(2, 16, 36, 0.24);
+  color: rgba(193, 232, 255, 0.62);
+}
+
+/* ---------- Tagesleisten ---------- */
 .day-card {
   width: 64px;
   flex-shrink: 0;
-  border-radius: 14px; /* konzentrisch zur 20px-Karte */
+  border-radius: 16px;
   background: var(--bg2);
-  border: 2px solid transparent;
+  border: 1.5px solid transparent;
+  box-shadow: 0 0.5px 0 rgba(2, 16, 36, 0.04), 0 2px 8px rgba(2, 16, 36, 0.05);
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 8px 0 7px;
+  padding: 9px 0 8px;
   gap: 3px;
   cursor: pointer;
-  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease,
+    background 0.15s ease;
 }
 .day-card:active {
   transform: scale(0.94);
 }
 .day-card[data-sel="true"] {
-  border-color: var(--sysBlue);
-  box-shadow: 0 2px 12px color-mix(in srgb, var(--sysBlue) 28%, transparent);
+  border-color: var(--tint-strong);
+  background: color-mix(in srgb, var(--c-ice-100) 26%, var(--bg2));
+  box-shadow: 0 5px 18px color-mix(in srgb, var(--tint-strong) 22%, transparent);
+}
+.day-card:focus-visible {
+  outline: 2px solid var(--tint-strong);
+  outline-offset: 2px;
 }
 .hscroll {
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding-bottom: 4px;
+  padding: 2px 2px 6px;
+  margin: 0 -2px;
+  scroll-snap-type: x proximity;
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
 .hscroll::-webkit-scrollbar {
   display: none;
 }
+.day-card {
+  scroll-snap-align: start;
+}
 .bar {
   width: 22px;
-  border-radius: 5px 5px 2px 2px;
+  border-radius: 6px 6px 3px 3px;
   min-height: 4px;
-  opacity: 0.9;
+  opacity: 0.95;
   display: inline-block;
 }
+.wcard {
+  width: 72px;
+}
+.wcard-emoji {
+  font-size: 18px;
+  line-height: 22px;
+}
 
-/* Systemeinstellung „Transparenz reduzieren": solide Flächen statt Glas */
+/* ---------- Detailseite: Push-Navigation ---------- */
+.page-anim {
+  animation: page-in 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+}
+@keyframes page-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0.35;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* Wetterdetails: gruppierte Liste im iOS-Stil */
+.detail-cond {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  padding: 14px 16px;
+}
+.detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  font-size: 15px;
+  min-height: 44px;
+}
+.detail-k {
+  color: var(--label2);
+}
+.detail-v {
+  color: var(--label);
+  font-weight: 600;
+  text-align: right;
+}
+
+/* ---------- Chart-Tooltip ---------- */
+.chart-tip {
+  background: var(--bg2);
+  border-radius: 14px;
+  padding: 8px 12px;
+  border: 0.5px solid var(--sepWeak);
+  box-shadow: 0 10px 30px rgba(2, 16, 36, 0.24);
+  font-size: 13px;
+}
+.chart-tip-key {
+  color: var(--label2);
+  font-weight: 600;
+  letter-spacing: -0.05px;
+  margin-bottom: 2px;
+}
+.chart-tip-val {
+  color: var(--label);
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+.chart-tip-accent {
+  color: var(--accent);
+}
+
+/* ---------- Tab-Bar unten (Liquid Glass, Safe-Area) ---------- */
+.tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  background: var(--glass);
+  border-top: 0.5px solid var(--sepWeak);
+  box-shadow: inset 0 0.5px 0 var(--glassSpec), 0 -6px 24px rgba(2, 16, 36, 0.08);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.tab-bar-inner {
+  display: flex;
+  max-width: 36rem;
+  margin: 0 auto;
+  padding: 4px 8px 4px;
+  gap: 4px;
+}
+.tab-item {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-height: 48px;
+  padding: 5px 0 3px;
+  background: none;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  color: var(--label2);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
+  transition: color 0.18s ease, transform 0.18s ease, background 0.18s ease;
+}
+/* aktiver Tab: Tint + getönte Glas-Kapsel (iOS-26-Anmutung) */
+.tab-item[data-active="true"] {
+  color: var(--tint-strong);
+  background: color-mix(in srgb, var(--tint-strong) 10%, transparent);
+}
+.tab-item[data-active="true"] .tab-ico {
+  transform: translateY(-0.5px);
+}
+.tab-ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.18s ease;
+}
+.tab-item:active {
+  transform: scale(0.94);
+}
+.tab-item:focus-visible {
+  outline: 2px solid var(--tint-strong);
+  outline-offset: -2px;
+}
+
+/* ---------- Barrierefreiheit ---------- */
 @media (prefers-reduced-transparency: reduce) {
   .ios-nav,
   .ios-refresh,
-  .ios-pill {
+  .ios-pill,
+  .tab-bar {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     background: var(--bg2);
@@ -227,51 +571,31 @@ body {
     border-color: var(--sepWeak);
   }
 }
-/* Systemeinstellung „Bewegung reduzieren": kein Morphing, keine Rotation */
 @media (prefers-reduced-motion: reduce) {
   .ios-nav,
   .ios-refresh,
-  .day-card {
+  .day-card,
+  .tab-item,
+  .tab-ico,
+  .ios-back,
+  .ios-nav-title {
     transition: none;
   }
   .ios-refresh:active {
     transform: none;
     filter: none;
   }
-  .day-card:active {
+  .day-card:active,
+  .tab-item:active,
+  .ios-back:active {
     transform: none;
+  }
+  .page-anim {
+    animation: none;
   }
 }
 
-/* ---------- Tab-Bar unten (Liquid Glass, Safe-Area) ---------- */
-.tab-bar {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
-  backdrop-filter: saturate(180%) blur(24px);
-  -webkit-backdrop-filter: saturate(180%) blur(24px);
-  background: var(--glass);
-  border-top: 0.5px solid var(--sepWeak);
-  box-shadow: inset 0 0.5px 0 var(--glassSpec), 0 -4px 18px rgba(0, 0, 0, 0.06);
-  padding-bottom: env(safe-area-inset-bottom);
-}
-.tab-bar-inner {
-  display: flex; max-width: 36rem; margin: 0 auto;
-  padding: 2px 8px 3px;
-}
-.tab-item {
-  flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 2px;
-  min-height: 44px; padding: 6px 0 4px;
-  background: none; border: none; cursor: pointer;
-  color: var(--label2); font-family: inherit; font-size: 10px; font-weight: 600;
-  letter-spacing: 0.1px;
-  transition: color 0.15s ease, transform 0.15s ease;
-}
-.tab-item[data-active="true"] { color: var(--sysBlue); }
-.tab-item:active { transform: scale(0.92); }
-.tab-item:focus-visible { outline: 2px solid var(--sysBlue); outline-offset: -2px; border-radius: 10px; }
-.wcard { width: 72px; gap: 1px; }
-.wcard-emoji { font-size: 19px; line-height: 24px; }
-
-/* ---------- Layout-Utilities (entsprechen den Tailwind-Klassen im Canvas) ---------- */
+/* ---------- Layout-Utilities (entsprechen den Tailwind-Klassen im Markup) ---------- */
 .mx-auto { margin-left: auto; margin-right: auto; }
 .max-w-xl { max-width: 36rem; }
 .px-4 { padding-left: 1rem; padding-right: 1rem; }
@@ -279,14 +603,13 @@ body {
 .px-1 { padding-left: 0.25rem; padding-right: 0.25rem; }
 .px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
 .p-4 { padding: 1rem; }
-.pb-3 { padding-bottom: 0.75rem; }
 .pt-6 { padding-top: 1.5rem; }
 .pt-4 { padding-top: 1rem; }
 .pb-16 { padding-bottom: 4rem; }
 .pb-1 { padding-bottom: 0.25rem; }
+.pb-3 { padding-bottom: 0.75rem; }
 .py-2\.5 { padding-top: 0.625rem; padding-bottom: 0.625rem; }
 .mt-1 { margin-top: 0.25rem; }
-.mt-4 { margin-top: 1rem; }
 .mt-3 { margin-top: 0.75rem; }
 .mt-4 { margin-top: 1rem; }
 .mt-5 { margin-top: 1.25rem; }
@@ -300,8 +623,8 @@ body {
 .justify-between { justify-content: space-between; }
 .justify-center { justify-content: center; }
 .gap-1 { gap: 0.25rem; }
-.gap-2 { gap: 0.5rem; }
 .gap-1\.5 { gap: 0.375rem; }
+.gap-2 { gap: 0.5rem; }
 .space-y-4 > * + * { margin-top: 1rem; }
 .h-24 { height: 6rem; }
 .h-28 { height: 7rem; }
@@ -314,12 +637,4 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .animate-pulse { animation: none; }
-  .tab-item { transition: none; }
-  .tab-item:active { transform: none; }
-}
-@media (prefers-reduced-transparency: reduce) {
-  .tab-bar {
-    backdrop-filter: none; -webkit-backdrop-filter: none;
-    background: var(--bg2);
-  }
 }
