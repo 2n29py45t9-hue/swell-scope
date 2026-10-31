@@ -1,5 +1,6 @@
 
 
+
 import React, { useEffect, useMemo, useState } from "react";
 import {
   AreaChart,
@@ -649,7 +650,7 @@ function WeatherDayStrip({
               {w?.tMin != null ? `${Math.round(w.tMin)}°` : ""}
             </span>
             <span style={{ fontSize: 9, fontWeight: 600, color: "var(--sysBlue)", minHeight: 12 }}>
-              {w?.precip != null && w.precip >= 0.2 ? `${num1(w.precip)} mm` : ""}
+              {w?.precip != null ? `${num1(w.precip)} mm` : ""}
             </span>
           </button>
         );
