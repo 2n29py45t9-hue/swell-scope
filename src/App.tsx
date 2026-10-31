@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useMemo, useState } from "react";
 import {
   AreaChart,
@@ -13,7 +14,7 @@ import {
 
 /* ============================================================
    Swell Scope – Paso 1: altura de ola en La Boca (Concón)
-   + Página de detalle del día: gráfico por hora y detalles del clima
+   + Página de detalle del día: gráfico cada 15 min y detalles del clima
    UI nach Apple Human Interface Guidelines:
    - iOS 26 „Liquid Glass“ für Navigation & Controls als
      funktionale Schicht über dem Content – sparsam eingesetzt
@@ -60,32 +61,53 @@ function num1(v: number | null) {
 function num0(v: number | null) {
   return v == null ? "–" : String(Math.round(v));
 }
+// Viertelstündige Interpolation: aus Stundwerten 15-Min-Schritte erzeugen
+// (Open-Meteo liefert Wellendaten nur stündlich – die Zwischenwerte sind
+//  linear interpoliert und im Tooltip mit „≈“ gekennzeichnet)
+function quarterHourly(rows: HourRow[]): HourRow[] {
+  const out: HourRow[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const a = rows[i];
+    out.push({ ...a, interp: false });
+    const b = rows[i + 1];
+    if (!b || a.h == null || b.h == null) continue;
+    for (let m = 15; m < 60; m += 15) {
+      out.push({
+        x: `${a.x.slice(0, 13)}:${pad2(m)}`,
+        h: a.h + ((b.h - a.h) * m) / 60,
+        interp: true,
+      });
+    }
+  }
+  return out;
+}
 // Himmelsrichtung (Wind kommt aus dieser Richtung)
 function dirText(deg: number | null) {
   if (deg == null) return "–";
   const dirs = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"];
   return dirs[Math.round((deg % 360) / 45) % 8];
 }
-// WMO-Wettercode → Beschreibung + Symbol
-function wmoInfo(code: number | null): { label: string; emoji: string } {
-  if (code == null) return { label: "Sin datos", emoji: "🌡️" };
-  if (code === 0) return { label: "Despejado", emoji: "☀️" };
-  if (code === 1) return { label: "Mayormente despejado", emoji: "🌤️" };
-  if (code === 2) return { label: "Parcialmente nublado", emoji: "⛅️" };
-  if (code === 3) return { label: "Nublado", emoji: "☁️" };
-  if (code === 45 || code === 48) return { label: "Niebla", emoji: "🌫️" };
-  if (code >= 51 && code <= 57) return { label: "Llovizna", emoji: "🌦️" };
-  if (code >= 61 && code <= 67) return { label: "Lluvia", emoji: "🌧️" };
-  if (code >= 71 && code <= 77) return { label: "Nieve", emoji: "🌨️" };
-  if (code >= 80 && code <= 82) return { label: "Chubascos", emoji: "🌦️" };
-  if (code >= 85 && code <= 86) return { label: "Chubascos de nieve", emoji: "🌨️" };
-  if (code >= 95) return { label: "Tormenta", emoji: "⛈️" };
-  return { label: "Sin datos", emoji: "🌡️" };
+// WMO-Wettercode → Beschreibung (ohne Emojis)
+function wmoInfo(code: number | null): { label: string } {
+  if (code == null) return { label: "Sin datos" };
+  if (code === 0) return { label: "Despejado" };
+  if (code === 1) return { label: "Mayormente despejado" };
+  if (code === 2) return { label: "Parcialmente nublado" };
+  if (code === 3) return { label: "Nublado" };
+  if (code === 45 || code === 48) return { label: "Niebla" };
+  if (code >= 51 && code <= 57) return { label: "Llovizna" };
+  if (code >= 61 && code <= 67) return { label: "Lluvia" };
+  if (code >= 71 && code <= 77) return { label: "Nieve" };
+  if (code >= 80 && code <= 82) return { label: "Chubascos" };
+  if (code >= 85 && code <= 86) return { label: "Chubascos de nieve" };
+  if (code >= 95) return { label: "Tormenta" };
+  return { label: "Sin datos" };
 }
 
 interface HourRow {
-  x: string; // "YYYY-MM-DDTHH:00" (Spot-Ortszeit)
+  x: string; // "YYYY-MM-DDTHH:MM" (Spot-Ortszeit)
   h: number | null; // Wellenhöhe in cm
+  interp?: boolean; // true = zwischen Stundenwerten interpoliert (Viertelstunde)
 }
 interface DayRow {
   date: string;
@@ -391,9 +413,8 @@ const CSS = `
 .tab-item[data-active="true"] { color: var(--sysBlue); }
 .tab-item:active { transform: scale(0.92); }
 .tab-item:focus-visible { outline: 2px solid var(--sysBlue); outline-offset: -2px; border-radius: 10px; }
-/* Wetter-Tageskarte: etwas breiter wegen Symbol + Max/Min (spanisch: clima) */
-.wcard { width: 72px; gap: 1px; }
-.wcard-emoji { font-size: 19px; line-height: 24px; }
+/* Wetter-Tageskarte: etwas breiter wegen Max/Min (spanisch: clima) */
+.wcard { width: 72px; }
 
 /* Systemeinstellung „Transparenz reduzieren“: solide Flächen statt Glas */
 @media (prefers-reduced-transparency: reduce) {
@@ -434,7 +455,7 @@ function ChartTooltip({ active, payload }: any) {
         {dt ? `${WD[dt.getDay()]}, ${pad2(dt.getDate())}/${pad2(dt.getMonth() + 1)} · ${iso.slice(11, 16)} h` : ""}
       </div>
       <div style={{ color: "var(--label)", fontWeight: 700 }}>
-        {num0(h)} cm
+        {v?.payload?.interp ? "≈ " : ""}{num0(h)} cm
       </div>
     </div>
   );
@@ -488,7 +509,7 @@ function WaveChart({
             dataKey="x"
             tickFormatter={(v: string) => v.slice(11, 13)}
             tick={{ fill: "var(--label2)", fontSize: 11 }}
-            interval={2}
+            interval={8}
             axisLine={false}
             tickLine={false}
           />
@@ -598,7 +619,6 @@ function WeatherDayStrip({
     <div className="hscroll">
       {days.map((d) => {
         const w = weather.find((x) => x.date === d.date);
-        const cond = wmoInfo(w?.code ?? null);
         const isToday = todayDate === d.date;
         const isSel = selected === d.date;
         return (
@@ -621,9 +641,6 @@ function WeatherDayStrip({
             </span>
             <span style={{ fontSize: 9, color: "var(--label3)" }}>
               {fmtShortDate(d.date)}
-            </span>
-            <span className="wcard-emoji" aria-hidden="true">
-              {cond.emoji}
             </span>
             <span style={{ fontSize: 12, fontWeight: 600, color: "var(--label)" }}>
               {w?.tMax != null ? `${Math.round(w.tMax)}°` : "–"}
@@ -660,7 +677,6 @@ function WeatherDetails({ w }: { w: DayWeather | undefined }) {
   return (
     <>
       <div className="detail-cond">
-        <span style={{ fontSize: 30 }}>{cond.emoji}</span>
         <span>{cond.label}</span>
       </div>
       {cell(
@@ -768,7 +784,7 @@ function DayDetail({
   spot: typeof SPOT;
 }) {
   const dayRows = useMemo(
-    () => rows.filter((r) => dateOnly(r.x) === day.date),
+    () => quarterHourly(rows).filter((r) => dateOnly(r.x) === day.date),
     [rows, day.date]
   );
   const hasNow = dayRows.some((r) => r.x === nowX);
@@ -781,7 +797,7 @@ function DayDetail({
       {/* Stunden-Diagramm der Wellenhöhe */}
       <section className="ios-card mt-5">
         <div className="px-5 pt-4 pb-1">
-          <div className="ios-caption">Altura de ola · por hora</div>
+          <div className="ios-caption">Altura de ola · cada 15 min</div>
           <div style={{ fontSize: 13, color: "var(--label2)", marginBottom: 8 }}>
             Máximo del día {day.max != null ? `${num0(day.max)} cm` : "–"}
           </div>
@@ -892,13 +908,13 @@ export default function App() {
     [weather, detailDayRow]
   );
 
-  // Home: ausschließlich heute · Olas: gewählter Tag
+  // Home: ausschließlich heute · Olas: gewählter Tag – viertelstündig interpoliert
   const homeRows = useMemo(
-    () => rows.filter((r) => dateOnly(r.x) === todayDate),
+    () => quarterHourly(rows).filter((r) => dateOnly(r.x) === todayDate),
     [rows, todayDate]
   );
   const waveRows = useMemo(
-    () => rows.filter((r) => dateOnly(r.x) === waveSel),
+    () => quarterHourly(rows).filter((r) => dateOnly(r.x) === waveSel),
     [rows, waveSel]
   );
   const homeHasNow = homeRows.some((r) => r.x === data?.nowX);
@@ -976,7 +992,7 @@ export default function App() {
           /* ---------------- Tab: Olas ---------------- */
           <div className="page-anim" key="waves">
             <h1 className="ios-large-title">Olas</h1>
-            <p className="ios-subtitle">{spot.region} · Altura por hora y previsión de 7 días</p>
+            <p className="ios-subtitle">{spot.region} · Altura cada 15 minutos y previsión de 7 días</p>
 
             {data && data.days.length > 0 && (
               <section className="mt-5">
@@ -1036,9 +1052,9 @@ export default function App() {
                 {fmtDayLabel(weatherSel)} · Máximo del día {weatherSelMax != null ? `${num0(weatherSelMax)} cm` : "–"}
               </div>
               <WaveChart
-                dayRows={rows.filter((r) => dateOnly(r.x) === weatherSel)}
+                dayRows={quarterHourly(rows).filter((r) => dateOnly(r.x) === weatherSel)}
                 nowX={data?.nowX ?? null}
-                hasNow={rows.some((r) => r.x === data?.nowX && dateOnly(r.x) === weatherSel)}
+                hasNow={quarterHourly(rows).some((r) => r.x === data?.nowX && dateOnly(r.x) === weatherSel)}
                 height={200}
                 gradientId="waveGradWeather"
               />
@@ -1104,7 +1120,7 @@ export default function App() {
             <section className="ios-card mt-6 p-4">
               <h3 style={{ fontSize: 17, fontWeight: 600, marginBottom: 12 }}>Altura de ola · hoy</h3>
               <div className="ios-caption" style={{ marginTop: -8, marginBottom: 12 }}>
-                {fmtDayLabel(todayDate)} · por hora
+                {fmtDayLabel(todayDate)} · cada 15 min
               </div>
               <WaveChart dayRows={homeRows} nowX={data?.nowX ?? null} hasNow={homeHasNow} height={256} gradientId="waveGrad" />
             </section>
