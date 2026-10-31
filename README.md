@@ -7,8 +7,25 @@ modelos de olas de Open-Meteo (grilla de 8 km, actualización cada 6 horas) – 
 sin algoritmo. La decisión es tuya.
 
 La interfaz sigue las Apple Human Interface Guidelines (Designing for iOS): tipografía del sistema SF,
-modo claro/oscuro automático con colores del sistema iOS, título grande, barra de navegación translúcida,
-tarjetas agrupadas y soporte de safe area.
+modo claro/oscuro automático, título grande, barra de navegación translúcida, tarjetas agrupadas y
+soporte de safe area.
+
+### Paleta
+
+Diseño basado en una paleta azul profunda con un acento neon rosa:
+
+| Token | Hex | Uso |
+| --- | --- | --- |
+| `--c-navy-950` | `#021024` | Fondo en modo oscuro, base del hero |
+| `--c-navy-900` | `#052659` | Marca / tint en modo claro |
+| `--c-blue-600` | `#5483B3` | Secundario, escala de olas |
+| `--c-blue-300` | `#7DA0CA` | Secundario claro / tint en modo oscuro |
+| `--c-ice-100` | `#C1E8FF` | Superficies y texto sobre fondo oscuro |
+| `--c-neon` | `#FF2D95` | Acento: „ahora", LIVE, olas 350+ (con moderación) |
+
+El acento neon solo se usa donde aporta significado (estado en vivo, marca de „ahora" y el extremo de la
+escala de altura). El resto de la interfaz queda en la gama azul, con un único tint para elementos
+interactivos, según la HIG.
 
 ## Funciones (paso 1)
 
