@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useEffect, useMemo, useState } from "react";
 import {
   AreaChart,
@@ -71,16 +72,25 @@ function quarterHourly(rows: HourRow[]): HourRow[] {
     const a = rows[i];
     out.push({ ...a, interp: false });
     const b = rows[i + 1];
-    if (!b || a.h == null || b.h == null) continue;
+    if (!b) continue;
+    const bothH = a.h != null && b.h != null;
+    const bothHp = a.hp != null && b.hp != null;
+    if (!bothH && !bothHp) continue;
     for (let m = 15; m < 60; m += 15) {
       out.push({
         x: `${a.x.slice(0, 13)}:${pad2(m)}`,
-        h: a.h + ((b.h - a.h) * m) / 60,
+        h: bothH ? a.h! + ((b.h! - a.h!) * m) / 60 : null,
+        hp: bothHp ? a.hp! + ((b.hp! - a.hp!) * m) / 60 : null,
         interp: true,
       });
     }
   }
   return out;
+}
+// Vorherigen Modelllauf als Vergleichsserie an die Zeilen anflanschen
+function withPrev(rows: HourRow[], prevMap: Record<string, number>): HourRow[] {
+  if (!Object.keys(prevMap).length) return rows;
+  return rows.map((r) => ({ ...r, hp: prevMap[r.x] ?? null }));
 }
 // Himmelsrichtung (Wind kommt aus dieser Richtung)
 function dirText(deg: number | null) {
@@ -108,6 +118,7 @@ function wmoInfo(code: number | null): { label: string } {
 interface HourRow {
   x: string; // "YYYY-MM-DDTHH:MM" (Spot-Ortszeit)
   h: number | null; // Wellenhöhe in cm
+  hp?: number | null; // Wellenhöhe des vorherigen Modelllaufs (cm) – „Schätzung von vorher"
   interp?: boolean; // true = zwischen Stundenwerten interpoliert (Viertelstunde)
 }
 interface DayRow {
@@ -136,7 +147,7 @@ interface WaveData {
 async function fetchWaveData(spot: { lat: number; lon: number }): Promise<WaveData> {
   const url =
     `https://marine-api.open-meteo.com/v1/marine?latitude=${spot.lat}&longitude=${spot.lon}` +
-    `&hourly=wave_height&daily=wave_height_max&forecast_days=7&timezone=auto`;
+    `&hourly=wave_height&daily=wave_height_max&past_days=7&forecast_days=7&timezone=auto`;
   const res = await fetch(url);
   if (!res.ok) throw new Error("HTTP " + res.status);
   const j = await res.json();
@@ -157,12 +168,35 @@ async function fetchWaveData(spot: { lat: number; lon: number }): Promise<WaveDa
   return { rows, days, nowX };
 }
 
+// ---------- Vorheriger Modelllauf (Vergleich Real vs. Estimado) ----------
+// Liefert zusätzlich die Wellenhöhen des VORHERIGEN Modelllaufs – also die
+// „Schätzung von vorher" für inzwischen vergangene Stunden. Fällt der Aufruf
+// unsupported aus, bleibt die Map leer und der Vergleich wird nicht gezeichnet.
+async function fetchWavePrev(spot: { lat: number; lon: number }): Promise<Record<string, number>> {
+  const url =
+    `https://marine-api.open-meteo.com/v1/marine?latitude=${spot.lat}&longitude=${spot.lon}` +
+    `&hourly=wave_height&past_days=2&forecast_days=1&previous_runs=true&timezone=auto`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const j = await res.json();
+  const h = j.hourly || {};
+  const times: string[] = Array.isArray(h.time) ? h.time : [];
+  const prev = h.wave_height_previous;
+  const map: Record<string, number> = {};
+  if (Array.isArray(prev)) {
+    times.forEach((t, i) => {
+      if (prev[i] != null) map[t] = prev[i] * 100; // m → cm
+    });
+  }
+  return map;
+}
+
 // ---------- Live-Wetter (Open-Meteo Forecast API) ----------
 async function fetchWeather(spot: { lat: number; lon: number }): Promise<DayWeather[]> {
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${spot.lat}&longitude=${spot.lon}` +
     `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,sunrise,sunset` +
-    `&forecast_days=7&timezone=auto`;
+    `&past_days=7&forecast_days=7&timezone=auto`;
   const res = await fetch(url);
   if (!res.ok) throw new Error("HTTP " + res.status);
   const j = await res.json();
@@ -200,7 +234,7 @@ function makeDemoData(spot: { lat: number; lon: number }): WaveData {
   const days: DayRow[] = [];
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0);
-  for (let d = 0; d < 7; d++) {
+  for (let d = -7; d < 7; d++) {
     const dayStart = new Date(start.getTime() + d * 86400000);
     const base = 1.6 + 1.3 * Math.sin((d + spot.lat) * 0.75) + rnd() * 0.4;
     days.push({
@@ -458,6 +492,11 @@ function ChartTooltip({ active, payload }: any) {
       <div style={{ color: "var(--label)", fontWeight: 700 }}>
         {v?.payload?.interp ? "≈ " : ""}{num0(h)} cm
       </div>
+      {v?.payload?.hp != null && (
+        <div style={{ color: "var(--label2)", fontWeight: 600, fontSize: 12 }}>
+          Estimado antes: {v.payload.interp ? "≈ " : ""}{num0(v.payload.hp)} cm
+        </div>
+      )}
     </div>
   );
 }
@@ -495,55 +534,77 @@ function WaveChart({
       </div>
     );
   }
+  const hasHp = dayRows.some((r) => r.hp != null);
   return (
-    <div style={{ height }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={dayRows} margin={{ top: 6, right: 8, bottom: 0, left: -14 }}>
-          <defs>
-            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--sysBlue)" stopOpacity={0.35} />
-              <stop offset="100%" stopColor="var(--sysBlue)" stopOpacity={0.02} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid stroke="var(--sepWeak)" vertical={false} />
-          <XAxis
-            dataKey="x"
-            tickFormatter={(v: string) => v.slice(11, 13)}
-            tick={{ fill: "var(--label2)", fontSize: 11 }}
-            interval={8}
-            axisLine={false}
-            tickLine={false}
-          />
-          <YAxis
-            tick={{ fill: "var(--label2)", fontSize: 11 }}
-            domain={[0, "auto"]}
-            tickFormatter={(v: number) => String(Math.round(v))}
-            unit=" cm"
-            width={48}
-            axisLine={false}
-            tickLine={false}
-          />
-          <Tooltip content={<ChartTooltip />} />
-          {hasNow && nowX && (
-            <ReferenceLine
-              x={nowX}
-              stroke="var(--sysPink)"
-              strokeDasharray="4 3"
-              label={{ value: "ahora", fill: "var(--sysPink)", fontSize: 10, position: "insideTopLeft" }}
+    <>
+      <div style={{ height }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={dayRows} margin={{ top: 6, right: 8, bottom: 0, left: -14 }}>
+            <defs>
+              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--sysBlue)" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="var(--sysBlue)" stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke="var(--sepWeak)" vertical={false} />
+            <XAxis
+              dataKey="x"
+              tickFormatter={(v: string) => v.slice(11, 13)}
+              tick={{ fill: "var(--label2)", fontSize: 11 }}
+              interval={8}
+              axisLine={false}
+              tickLine={false}
             />
-          )}
-          <Area
-            type="monotone"
-            dataKey="h"
-            name="Altura de ola"
-            stroke="var(--sysBlue)"
-            strokeWidth={2}
-            fill={`url(#${gradientId})`}
-            connectNulls
-          />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
+            <YAxis
+              tick={{ fill: "var(--label2)", fontSize: 11 }}
+              domain={[0, "auto"]}
+              tickFormatter={(v: number) => String(Math.round(v))}
+              unit=" cm"
+              width={48}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip content={<ChartTooltip />} />
+            {hasNow && nowX && (
+              <ReferenceLine
+                x={nowX}
+                stroke="var(--sysPink)"
+                strokeDasharray="4 3"
+                label={{ value: "ahora", fill: "var(--sysPink)", fontSize: 10, position: "insideTopLeft" }}
+              />
+            )}
+            {hasHp && (
+              <Area
+                type="monotone"
+                dataKey="hp"
+                name="Estimado antes"
+                stroke="var(--sysGray)"
+                strokeWidth={1.5}
+                strokeDasharray="5 4"
+                fill="none"
+                connectNulls
+              />
+            )}
+            <Area
+              type="monotone"
+              dataKey="h"
+              name="Altura de ola"
+              stroke="var(--sysBlue)"
+              strokeWidth={2}
+              fill={`url(#${gradientId})`}
+              connectNulls
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+      {hasHp && (
+        <div className="ios-caption" style={{ marginTop: 6 }}>
+          <span style={{ color: "var(--sysBlue)", fontWeight: 700 }}>—</span> Real · último modelo
+          {" · "}
+          <span style={{ color: "var(--sysGray)", fontWeight: 700 }}>– –</span> Estimado antes (modelo anterior)
+        </div>
+      )}
+    </>
   );
 }
 
@@ -563,6 +624,7 @@ function WaveDayStrip({
     <div className="hscroll">
       {days.map((d) => {
         const isToday = todayDate === d.date;
+        const isPast = d.date < todayDate;
         const isSel = selected === d.date;
         const h = d.max ?? 0;
         return (
@@ -578,7 +640,7 @@ function WaveDayStrip({
               style={{
                 fontSize: 10,
                 fontWeight: 700,
-                color: isSel || isToday ? "var(--sysBlue)" : "var(--label2)",
+                color: isSel || isToday ? "var(--sysBlue)" : isPast ? "var(--label3)" : "var(--label2)",
               }}
             >
               {isToday ? "Hoy" : weekdayOf(d.date)}
@@ -621,6 +683,7 @@ function WeatherDayStrip({
       {days.map((d) => {
         const w = weather.find((x) => x.date === d.date);
         const isToday = todayDate === d.date;
+        const isPast = d.date < todayDate;
         const isSel = selected === d.date;
         return (
           <button
@@ -635,7 +698,7 @@ function WeatherDayStrip({
               style={{
                 fontSize: 10,
                 fontWeight: 700,
-                color: isSel || isToday ? "var(--sysBlue)" : "var(--label2)",
+                color: isSel || isToday ? "var(--sysBlue)" : isPast ? "var(--label3)" : "var(--label2)",
               }}
             >
               {isToday ? "Hoy" : weekdayOf(d.date)}
@@ -798,7 +861,14 @@ function DayDetail({
       {/* Stunden-Diagramm der Wellenhöhe */}
       <section className="ios-card mt-5">
         <div className="px-5 pt-4 pb-1">
-          <div className="ios-caption">Altura de ola · cada 15 min</div>
+          <div className="ios-caption">
+            Altura de ola · cada 15 min ·{" "}
+            {day.date < (nowX ? dateOnly(nowX) : day.date)
+              ? "análisis del modelo (real aprox.)"
+              : day.date > (nowX ? dateOnly(nowX) : day.date)
+              ? "pronóstico"
+              : "real hasta ahora, pronóstico después"}
+          </div>
           <div style={{ fontSize: 13, color: "var(--label2)", marginBottom: 8 }}>
             Máximo del día {day.max != null ? `${num0(day.max)} cm` : "–"}
           </div>
@@ -820,6 +890,7 @@ function DayDetail({
 export default function App() {
   const [data, setData] = useState<WaveData | null>(null);
   const [weather, setWeather] = useState<DayWeather[]>([]);
+  const [prevMap, setPrevMap] = useState<Record<string, number>>({});
   const [demo, setDemo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
@@ -859,9 +930,19 @@ export default function App() {
           w = [];
         }
       }
+      // Vorheriger Modelllauf separat – bei Nicht-Unterstützung leer (kein Vergleich)
+      let pMap: Record<string, number> = {};
+      if (!demoMode) {
+        try {
+          pMap = await fetchWavePrev(spot);
+        } catch {
+          pMap = {};
+        }
+      }
       if (!alive) return;
       setData(d);
       setWeather(w);
+      setPrevMap(pMap);
       setDemo(demoMode);
       setLoading(false);
     })();
@@ -895,6 +976,9 @@ export default function App() {
   const todayMax = data?.days.find((d) => d.date === todayKey)?.max ?? null;
   const todayDate = todayKey ?? dateOnly(isoLocal(new Date()));
 
+  // Zeilen inkl. Vergleichsserie des vorherigen Modelllaufs
+  const rowsP = useMemo(() => withPrev(rows, prevMap), [rows, prevMap]);
+
   // Gewählte Tage der Tabs (Fallback: heute, falls Tag nicht in den Daten)
   const hasDay = (d: string | null) => !!d && !!data?.days.some((x) => x.date === d);
   const waveSel = hasDay(waveDate) ? (waveDate as string) : todayDate;
@@ -911,12 +995,12 @@ export default function App() {
 
   // Home: ausschließlich heute · Olas: gewählter Tag – viertelstündig interpoliert
   const homeRows = useMemo(
-    () => quarterHourly(rows).filter((r) => dateOnly(r.x) === todayDate),
-    [rows, todayDate]
+    () => quarterHourly(rowsP).filter((r) => dateOnly(r.x) === todayDate),
+    [rowsP, todayDate]
   );
   const waveRows = useMemo(
-    () => quarterHourly(rows).filter((r) => dateOnly(r.x) === waveSel),
-    [rows, waveSel]
+    () => quarterHourly(rowsP).filter((r) => dateOnly(r.x) === waveSel),
+    [rowsP, waveSel]
   );
   const homeHasNow = homeRows.some((r) => r.x === data?.nowX);
   const waveHasNow = waveRows.some((r) => r.x === data?.nowX);
@@ -984,7 +1068,7 @@ export default function App() {
             <DayDetail
               day={detailDayRow}
               weather={detailWeather}
-              rows={rows}
+              rows={rowsP}
               nowX={data?.nowX ?? null}
               spot={spot}
             />
@@ -993,7 +1077,7 @@ export default function App() {
           /* ---------------- Tab: Olas ---------------- */
           <div className="page-anim" key="waves">
             <h1 className="ios-large-title">Olas</h1>
-            <p className="ios-subtitle">{spot.region} · Altura cada 15 minutos y previsión de 7 días</p>
+            <p className="ios-subtitle">{spot.region} · Altura cada 15 min · últimos 7 y próximos 7 días</p>
 
             {data && data.days.length > 0 && (
               <section className="mt-5">
@@ -1053,9 +1137,9 @@ export default function App() {
                 {fmtDayLabel(weatherSel)} · Máximo del día {weatherSelMax != null ? `${num0(weatherSelMax)} cm` : "–"}
               </div>
               <WaveChart
-                dayRows={quarterHourly(rows).filter((r) => dateOnly(r.x) === weatherSel)}
+                dayRows={quarterHourly(rowsP).filter((r) => dateOnly(r.x) === weatherSel)}
                 nowX={data?.nowX ?? null}
-                hasNow={quarterHourly(rows).some((r) => r.x === data?.nowX && dateOnly(r.x) === weatherSel)}
+                hasNow={quarterHourly(rowsP).some((r) => r.x === data?.nowX && dateOnly(r.x) === weatherSel)}
                 height={200}
                 gradientId="waveGradWeather"
               />
@@ -1107,7 +1191,7 @@ export default function App() {
             {/* Tagesübersicht */}
             {data && data.days.length > 0 && (
               <section className="mt-6">
-                <h3 className="ios-section-head mb-2 px-1">Máximo por día · 7 días</h3>
+                <h3 className="ios-section-head mb-2 px-1">Máximo por día · últimos 7 y próximos 7 días</h3>
                 <WaveDayStrip
                   days={data.days}
                   todayDate={todayDate}
