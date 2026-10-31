@@ -1,3 +1,4 @@
+
 import React, { useEffect, useMemo, useState } from "react";
 import {
   AreaChart,
@@ -55,6 +56,10 @@ function fmtShortDate(dateStr: string) {
 function num1(v: number | null) {
   return v == null ? "–" : v.toFixed(1).replace(".", ",");
 }
+// Ganzzahl – Höhen werden durchgehend in cm angezeigt
+function num0(v: number | null) {
+  return v == null ? "–" : String(Math.round(v));
+}
 // Himmelsrichtung (Wind kommt aus dieser Richtung)
 function dirText(deg: number | null) {
   if (deg == null) return "–";
@@ -80,7 +85,7 @@ function wmoInfo(code: number | null): { label: string; emoji: string } {
 
 interface HourRow {
   x: string; // "YYYY-MM-DDTHH:00" (Spot-Ortszeit)
-  h: number | null; // Wellenhöhe in m
+  h: number | null; // Wellenhöhe in cm
 }
 interface DayRow {
   date: string;
@@ -117,12 +122,12 @@ async function fetchWaveData(spot: { lat: number; lon: number }): Promise<WaveDa
   const heights = h.wave_height ?? [];
   const rows: HourRow[] = times.map((t, i) => ({
     x: t,
-    h: heights[i] != null ? heights[i] : null,
+    h: heights[i] != null ? heights[i] * 100 : null, // API liefert m → Anzeige in cm
   }));
   const d = j.daily || {};
   const days: DayRow[] = ((d.time as string[]) || []).map((t: string, i: number) => ({
     date: t,
-    max: (d.wave_height_max || [])[i] ?? null,
+    max: (d.wave_height_max || [])[i] != null ? (d.wave_height_max || [])[i] * 100 : null, // m → cm
   }));
   const utcOffset = j.utc_offset_seconds ?? 0;
   const nowX = new Date(Date.now() + utcOffset * 1000).toISOString().slice(0, 13) + ":00";
@@ -177,14 +182,14 @@ function makeDemoData(spot: { lat: number; lon: number }): WaveData {
     const base = 1.6 + 1.3 * Math.sin((d + spot.lat) * 0.75) + rnd() * 0.4;
     days.push({
       date: `${dayStart.getFullYear()}-${pad2(dayStart.getMonth() + 1)}-${pad2(dayStart.getDate())}`,
-      max: Math.max(0.3, base + 0.6),
+      max: Math.max(0.3, base + 0.6) * 100, // m → cm
     });
     for (let hh = 0; hh < 24; hh++) {
       const t = new Date(dayStart.getTime() + hh * 3600000);
       const phase = ((hh + 9) / 24) * Math.PI * 2;
       rows.push({
         x: isoLocal(t),
-        h: Math.max(0.3, base + 0.35 * Math.sin(phase) + (rnd() - 0.5) * 0.3),
+        h: Math.max(0.3, base + 0.35 * Math.sin(phase) + (rnd() - 0.5) * 0.3) * 100, // m → cm
       });
     }
   }
@@ -210,9 +215,9 @@ function makeDemoWeather(days: DayRow[]): DayWeather[] {
 // ---------- iOS-Designfarben (via CSS-Variablen, Light/Dark automatisch) ----------
 function heightColor(h: number | null) {
   if (h == null) return "var(--sysGray)";
-  if (h < 1) return "var(--sysGreen)";
-  if (h < 2) return "var(--sysBlue)";
-  if (h < 3.5) return "var(--sysOrange)";
+  if (h < 100) return "var(--sysGreen)";
+  if (h < 200) return "var(--sysBlue)";
+  if (h < 350) return "var(--sysOrange)";
   return "var(--sysRed)";
 }
 
@@ -429,7 +434,7 @@ function ChartTooltip({ active, payload }: any) {
         {dt ? `${WD[dt.getDay()]}, ${pad2(dt.getDate())}/${pad2(dt.getMonth() + 1)} · ${iso.slice(11, 16)} h` : ""}
       </div>
       <div style={{ color: "var(--label)", fontWeight: 700 }}>
-        {num1(h)} m
+        {num0(h)} cm
       </div>
     </div>
   );
@@ -490,9 +495,9 @@ function WaveChart({
           <YAxis
             tick={{ fill: "var(--label2)", fontSize: 11 }}
             domain={[0, "auto"]}
-            tickFormatter={(v: number) => v.toFixed(1).replace(".", ",")}
-            unit=" m"
-            width={40}
+            tickFormatter={(v: number) => String(Math.round(v))}
+            unit=" cm"
+            width={48}
             axisLine={false}
             tickLine={false}
           />
@@ -562,11 +567,11 @@ function WaveDayStrip({
             <span style={{ height: 56, display: "flex", alignItems: "flex-end" }}>
               <span
                 className="bar"
-                style={{ height: `${clamp((h / 4.5) * 100, 8, 100)}%`, background: heightColor(h) }}
+                style={{ height: `${clamp((h / 450) * 100, 8, 100)}%`, background: heightColor(h) }}
               />
             </span>
             <span style={{ fontSize: 12, fontWeight: 600, color: "var(--label)" }}>
-              {num1(d.max)}
+              {num0(d.max)}
             </span>
           </button>
         );
@@ -778,7 +783,7 @@ function DayDetail({
         <div className="px-5 pt-4 pb-1">
           <div className="ios-caption">Altura de ola · por hora</div>
           <div style={{ fontSize: 13, color: "var(--label2)", marginBottom: 8 }}>
-            Máximo del día {day.max != null ? `${num1(day.max)} m` : "–"}
+            Máximo del día {day.max != null ? `${num0(day.max)} cm` : "–"}
           </div>
         </div>
         <div className="px-2 pb-3">
@@ -990,7 +995,7 @@ export default function App() {
                 Altura de ola · {isTodaySel(waveSel) ? "hoy" : fmtDayLabel(waveSel)}
               </h3>
               <div className="ios-caption" style={{ marginTop: -6, marginBottom: 12 }}>
-                {fmtDayLabel(waveSel)} · Máximo del día {waveSelMax != null ? `${num1(waveSelMax)} m` : "–"}
+                {fmtDayLabel(waveSel)} · Máximo del día {waveSelMax != null ? `${num0(waveSelMax)} cm` : "–"}
               </div>
               <WaveChart dayRows={waveRows} nowX={data?.nowX ?? null} hasNow={waveHasNow} height={280} gradientId="waveGradWaves" />
             </section>
@@ -1028,7 +1033,7 @@ export default function App() {
             <h3 className="ios-section-head mt-6 mb-2 px-1">Olas del día elegido</h3>
             <section className="ios-card p-4">
               <div className="ios-caption" style={{ marginBottom: 8 }}>
-                {fmtDayLabel(weatherSel)} · Máximo del día {weatherSelMax != null ? `${num1(weatherSelMax)} m` : "–"}
+                {fmtDayLabel(weatherSel)} · Máximo del día {weatherSelMax != null ? `${num0(weatherSelMax)} cm` : "–"}
               </div>
               <WaveChart
                 dayRows={rows.filter((r) => dateOnly(r.x) === weatherSel)}
@@ -1063,21 +1068,21 @@ export default function App() {
                       color: heightColor(nowRow?.h ?? null),
                     }}
                   >
-                    {num1(nowRow?.h ?? null)}
+                    {num0(nowRow?.h ?? null)}
                   </span>
-                  <span style={{ fontSize: 22, color: "var(--label2)", fontWeight: 600 }}>m</span>
+                  <span style={{ fontSize: 22, color: "var(--label2)", fontWeight: 600 }}>cm</span>
                 </div>
                 <div style={{ fontSize: 14, color: "var(--label2)", marginBottom: 12 }}>
                   {nowRow ? `${nowRow.x.slice(11, 16)} h` : "Sin datos"}
-                  {todayMax != null && <> · máx hoy {num1(todayMax)} m</>}
+                  {todayMax != null && <> · máx hoy {num0(todayMax)} cm</>}
                 </div>
               </div>
               <div className="ios-cell-sep flex items-center gap-1.5 px-5 py-2.5" style={{ fontSize: 11, color: "var(--label3)" }}>
-                <span className="bar" style={{ background: "var(--sysGreen)", width: 18, height: 4 }} /> &lt;1
-                <span className="ml-1 bar" style={{ background: "var(--sysBlue)", width: 18, height: 4 }} /> 1–2
-                <span className="ml-1 bar" style={{ background: "var(--sysOrange)", width: 18, height: 4 }} /> 2–3,5
-                <span className="ml-1 bar" style={{ background: "var(--sysRed)", width: 18, height: 4 }} /> 3,5+
-                <span className="ml-1">m</span>
+                <span className="bar" style={{ background: "var(--sysGreen)", width: 18, height: 4 }} /> &lt;100
+                <span className="ml-1 bar" style={{ background: "var(--sysBlue)", width: 18, height: 4 }} /> 100–200
+                <span className="ml-1 bar" style={{ background: "var(--sysOrange)", width: 18, height: 4 }} /> 200–350
+                <span className="ml-1 bar" style={{ background: "var(--sysRed)", width: 18, height: 4 }} /> 350+
+                <span className="ml-1">cm</span>
                 {loading && <span className="ml-auto">Actualizando…</span>}
               </div>
             </section>
